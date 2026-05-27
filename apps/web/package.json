@@ -6,7 +6,8 @@
     "dev": "vp dev",
     "preview": "vp preview",
     "start": "node .output/server/index.mjs",
-    "ui": "vpx shadcn@latest"
+    "ui": "vpx shadcn@latest",
+    "deploy:cf": "wrangler pages deploy .output/public"
   },
   "dependencies": {
     "@fontsource-variable/inter": "catalog:",
@@ -48,6 +49,7 @@
     "nitro": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "wrangler": "^4.95.0"
   }
 }

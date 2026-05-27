@@ -1,5 +1,5 @@
-import { Button } from "@repo/ui/components/button";
 import { supabaseBrowser } from "@repo/db/browser";
+import { Button } from "@repo/ui/components/button";
 
 interface SocialLoginButtonProps {
   provider: "github" | "azure";

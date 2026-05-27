@@ -1,0 +1,15 @@
+name = "schema-studio"
+compatibility_date = "2026-05-27"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare Pages build output directory
+pages_build_output_dir = ".output/public"
+
+# Environment variables for production
+# Set these in Cloudflare Dashboard > Pages > Settings > Environment variables
+# or via: wrangler pages secret put SUPABASE_URL
+# [env.production.vars]
+# SUPABASE_URL = ""
+# SUPABASE_SERVICE_ROLE_KEY = ""
+# VITE_SUPABASE_URL = ""
+# VITE_SUPABASE_ANON_KEY = ""

@@ -19,7 +19,9 @@ function AppIndex() {
 
       <div>
         User from route context:
-        <span className="mt-0.5 block font-mono text-xs">{user?.name}</span>
+        <span className="mt-0.5 block font-mono text-xs">
+          {user?.user_metadata?.name || user?.email}
+        </span>
       </div>
 
       <div>
