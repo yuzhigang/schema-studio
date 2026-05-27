@@ -6,10 +6,6 @@ allowBuilds:
   esbuild: true
   msw: false
 
-# https://pnpm.io/settings#minimumreleaseage
-# https://pnpm.io/supply-chain-security#delay-dependency-updates
-minimumReleaseAge: 1440
-
 catalog:
   "@babel/core": ^7.29.7
   "@base-ui/react": ^1.5.0
