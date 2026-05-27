@@ -1,43 +1,32 @@
-import { authClient } from "@repo/auth/auth-client";
 import { Button } from "@repo/ui/components/button";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { supabaseBrowser } from "@repo/db/browser";
 
 interface SocialLoginButtonProps {
-  provider: string;
+  provider: "github" | "azure";
   icon: React.ReactNode;
   disabled?: boolean;
   callbackURL: string;
 }
 
 export function SignInSocialButton(props: SocialLoginButtonProps) {
-  const providerLabel =
-    props.provider === "github"
-      ? "GitHub"
-      : props.provider.charAt(0).toUpperCase() + props.provider.slice(1);
+  const providerLabel = props.provider === "azure" ? "Microsoft" : "GitHub";
 
-  const mutation = useMutation({
-    mutationFn: async () =>
-      await authClient.signIn.social(
-        {
-          provider: props.provider,
-          callbackURL: props.callbackURL,
-        },
-        {
-          onError: ({ error }) => {
-            toast.error(error.message || `An error occurred during ${providerLabel} sign-in.`);
-          },
-        },
-      ),
-  });
+  const handleSignIn = async () => {
+    await supabaseBrowser.auth.signInWithOAuth({
+      provider: props.provider,
+      options: {
+        redirectTo: props.callbackURL,
+      },
+    });
+  };
 
   return (
     <Button
       variant="secondary"
       className="w-full"
       type="button"
-      disabled={mutation.isSuccess || mutation.isPending || props.disabled}
-      onClick={() => mutation.mutate()}
+      disabled={props.disabled}
+      onClick={handleSignIn}
     >
       {props.icon}
       Login with {providerLabel}
