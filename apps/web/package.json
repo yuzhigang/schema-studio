@@ -7,7 +7,7 @@
     "preview": "vp preview",
     "start": "node .output/server/index.mjs",
     "ui": "vpx shadcn@latest",
-    "deploy:cf": "wrangler pages deploy .output/public"
+    "deploy:cf": "wrangler pages deploy dist"
   },
   "dependencies": {
     "@fontsource-variable/inter": "catalog:",

@@ -1,5 +1,6 @@
-import { supabaseBrowser } from "@repo/db/browser";
 import { Button } from "@repo/ui/components/button";
+
+import { supabaseBrowser } from "#/lib/supabase";
 
 interface SocialLoginButtonProps {
   provider: "github" | "azure";
@@ -12,10 +13,13 @@ export function SignInSocialButton(props: SocialLoginButtonProps) {
   const providerLabel = props.provider === "azure" ? "Microsoft" : "GitHub";
 
   const handleSignIn = async () => {
+    const next = props.callbackURL.startsWith("http") ? props.callbackURL : props.callbackURL;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
     await supabaseBrowser.auth.signInWithOAuth({
       provider: props.provider,
       options: {
-        redirectTo: props.callbackURL,
+        redirectTo,
+        scopes: "read:user user:email",
       },
     });
   };

@@ -1,2 +1,2 @@
 export { createSupabaseServer } from "./server";
-export { supabaseBrowser } from "./browser";
+export { createSupabaseBrowser, getSupabaseBrowser } from "./browser";

@@ -1,8 +1,9 @@
 import { authQueryOptions } from "@repo/auth/tanstack/queries";
-import { supabaseBrowser } from "@repo/db/browser";
 import { Button } from "@repo/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+
+import { supabaseBrowser } from "#/lib/supabase";
 
 export function SignOutButton() {
   const queryClient = useQueryClient();

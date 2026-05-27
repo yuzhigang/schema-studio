@@ -1,7 +1,20 @@
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const env = (import.meta as any).env || {};
-const supabaseUrl = env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+let client: SupabaseClient | null = null;
 
-export const supabaseBrowser = createClient(supabaseUrl!, supabaseAnonKey!);
+export function createSupabaseBrowser(url: string, anonKey: string) {
+  if (!client) {
+    client = createBrowserClient(url, anonKey);
+  }
+  return client;
+}
+
+export function getSupabaseBrowser() {
+  if (!client) {
+    throw new Error(
+      "Supabase browser client not initialized. " + "Call createSupabaseBrowser(url, key) first.",
+    );
+  }
+  return client;
+}

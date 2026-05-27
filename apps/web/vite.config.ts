@@ -37,6 +37,10 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  optimizeDeps: {
+    force: true,
+    exclude: ["@repo/db"],
+  },
   server: {
     port: 3000,
   },

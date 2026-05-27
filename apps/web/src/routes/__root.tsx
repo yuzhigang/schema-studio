@@ -52,6 +52,14 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 });
 
 function RootDocument({ children }: { readonly children: React.ReactNode }) {
+  // Debug: check env vars
+  // eslint-disable-next-line no-console
+  console.log("[ENV DEBUG]", {
+    url: (import.meta as any).env?.VITE_SUPABASE_URL,
+    key: (import.meta as any).env?.VITE_SUPABASE_ANON_KEY,
+    keys: Object.keys((import.meta as any).env || {}).filter((k: string) => k.startsWith("VITE_")),
+  });
+
   return (
     // suppress since we're updating the "dark" class in ThemeProvider
     <html lang="en" suppressHydrationWarning>
