@@ -29,7 +29,7 @@
     "vite-plus": "catalog:"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "packageManager": "pnpm@11.3.0",
   "generator": "create-mugnavo"
