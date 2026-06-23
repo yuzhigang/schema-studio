@@ -1,13 +1,5 @@
 import { Button } from "@repo/ui/components/button";
-import { Input } from "@repo/ui/components/input";
-import {
-  ChevronRightIcon,
-  HistoryIcon,
-  SaveIcon,
-  SearchIcon,
-  Table2Icon,
-  UploadIcon,
-} from "lucide-react";
+import { ChevronRightIcon, HistoryIcon, SaveIcon, Table2Icon, UploadIcon } from "lucide-react";
 
 import type { SchemaTable, TableMetadata } from "./mock-data";
 
@@ -25,16 +17,7 @@ type DesignerHeaderProps = {
 export function DesignerHeader({ path, metadata, saveLabel, onSave }: DesignerHeaderProps) {
   return (
     <header className="border-b border-slate-200 bg-white">
-      <div className="flex h-[58px] items-center justify-end px-4">
-        <div className="relative w-[560px] max-w-[48vw]">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="搜索项目、表、字段、注释..."
-            className="h-9 rounded-md border-slate-200 bg-white pl-9 shadow-none"
-          />
-        </div>
-      </div>
-      <div className="px-4 pb-3">
+      <div className="px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="mb-2 flex items-center gap-1 text-sm text-slate-500">
