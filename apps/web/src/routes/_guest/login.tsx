@@ -1,6 +1,6 @@
 import { SiGithub } from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { GalleryVerticalEndIcon } from "lucide-react";
+import { DatabaseZapIcon } from "lucide-react";
 
 import { SignInSocialButton } from "#/components/sign-in-social-button";
 
@@ -16,11 +16,11 @@ function LoginPage() {
       <div className="flex flex-col items-center gap-2">
         <Link to="/" className="flex flex-col items-center gap-2 font-medium">
           <div className="flex h-8 w-8 items-center justify-center rounded-md">
-            <GalleryVerticalEndIcon className="size-6" />
+            <DatabaseZapIcon className="size-6" />
           </div>
-          <span className="sr-only">Acme Inc.</span>
+          <span className="sr-only">Schema Studio</span>
         </Link>
-        <h1 className="text-xl font-bold">Welcome back to Acme Inc.</h1>
+        <h1 className="text-xl font-bold">Sign in to Schema Studio</h1>
       </div>
 
       <div className="grid gap-4">

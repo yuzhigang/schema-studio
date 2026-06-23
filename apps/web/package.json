@@ -7,7 +7,7 @@
     "preview": "vp preview",
     "start": "node .output/server/index.mjs",
     "ui": "vpx shadcn@latest",
-    "deploy:cf": "wrangler pages deploy dist"
+    "deploy:cf": "wrangler pages deploy --project-name schema-studio --commit-dirty=true"
   },
   "dependencies": {
     "@fontsource-variable/inter": "catalog:",
@@ -15,19 +15,13 @@
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/ui": "workspace:*",
-    "@tanstack/react-form-start": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-ssr-query": "catalog:",
     "@tanstack/react-start": "catalog:",
-    "date-fns": "catalog:",
     "lucide-react": "catalog:",
-    "motion": "catalog:",
-    "nanoid": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "sonner": "catalog:",
-    "zod": "catalog:"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",

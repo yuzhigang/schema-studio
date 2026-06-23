@@ -99,9 +99,6 @@ catalogs:
     motion:
       specifier: ^12.40.0
       version: 12.40.0
-    nanoid:
-      specifier: ^5.1.11
-      version: 5.1.11
     nitro:
       specifier: ^3.0.260522-beta
       version: 3.0.260522-beta
@@ -173,9 +170,6 @@ importers:
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@tanstack/react-form-start':
-        specifier: 'catalog:'
-        version: 1.32.1(@tanstack/react-start@1.168.14(@voidzero-dev/vite-plus-core@0.1.22(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)(typescript@6.0.3))(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.100.14(react@19.2.6)
@@ -188,30 +182,15 @@ importers:
       '@tanstack/react-start':
         specifier: 'catalog:'
         version: 1.168.14(@voidzero-dev/vite-plus-core@0.1.22(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)(typescript@6.0.3))(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      date-fns:
-        specifier: 'catalog:'
-        version: 4.3.0
       lucide-react:
         specifier: 'catalog:'
         version: 1.16.0(react@19.2.6)
-      motion:
-        specifier: 'catalog:'
-        version: 12.40.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      nanoid:
-        specifier: 'catalog:'
-        version: 5.1.11
       react:
         specifier: 'catalog:'
         version: 19.2.6
       react-dom:
         specifier: 'catalog:'
         version: 19.2.6(react@19.2.6)
-      sonner:
-        specifier: 'catalog:'
-        version: 2.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'
@@ -3502,11 +3481,6 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  nanoid@5.1.11:
-    resolution: {integrity: sha512-v+KEsUv2ps74PaSKv0gHTxTCgMXOIfBEbaqa6w6ISIGC7ZsvHN4N9oJ8d4cmf0n5oTzQz2SLmThbQWhjd/8eKg==}
-    engines: {node: ^18 || >=20}
-    hasBin: true
-
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
@@ -5665,17 +5639,6 @@ snapshots:
       - solid-js
       - vue
 
-  '@tanstack/react-form-start@1.32.1(@tanstack/react-start@1.168.14(@voidzero-dev/vite-plus-core@0.1.22(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)(typescript@6.0.3))(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
-    dependencies:
-      '@tanstack/react-form': 1.32.1(@tanstack/react-start@1.168.14(@voidzero-dev/vite-plus-core@0.1.22(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)(typescript@6.0.3))(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      decode-formdata: 0.9.0
-      devalue: 5.8.1
-      react: 19.2.6
-    optionalDependencies:
-      '@tanstack/react-start': 1.168.14(@voidzero-dev/vite-plus-core@0.1.22(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)(typescript@6.0.3))(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-    transitivePeerDependencies:
-      - react-dom
-
   '@tanstack/react-form-start@1.32.1(@tanstack/react-start@1.168.14(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@tanstack/react-form': 1.32.1(@tanstack/react-start@1.168.14(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -5684,16 +5647,6 @@ snapshots:
       react: 19.2.6
     optionalDependencies:
       '@tanstack/react-start': 1.168.14(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0))
-    transitivePeerDependencies:
-      - react-dom
-
-  '@tanstack/react-form@1.32.1(@tanstack/react-start@1.168.14(@voidzero-dev/vite-plus-core@0.1.22(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)(typescript@6.0.3))(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
-    dependencies:
-      '@tanstack/form-core': 1.32.1
-      '@tanstack/react-store': 0.9.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      react: 19.2.6
-    optionalDependencies:
-      '@tanstack/react-start': 1.168.14(@voidzero-dev/vite-plus-core@0.1.22(@types/node@25.9.1)(esbuild@0.27.3)(jiti@2.7.0)(typescript@6.0.3))(crossws@0.4.5(srvx@0.11.16))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     transitivePeerDependencies:
       - react-dom
 
@@ -7240,8 +7193,6 @@ snapshots:
   mute-stream@4.0.0: {}
 
   nanoid@3.3.12: {}
-
-  nanoid@5.1.11: {}
 
   natural-compare@1.4.0: {}
 

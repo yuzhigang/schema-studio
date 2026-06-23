@@ -8,6 +8,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import type { ReactNode } from "react";
 
 import appCss from "#/styles.css?url";
 
@@ -36,30 +37,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
       {
         name: "description",
-        content: "A TanStack Start project scaffolded with create-mugnavo.",
+        content: "Schema Studio helps teams model, inspect, and evolve application schemas.",
       },
     ],
-    links: [
-      // Replace with your icons here, or remove if you have a favicon.ico in public/
-      {
-        rel: "icon",
-        href: "https://mugnavo.com/favicon.ico",
-      },
-      { rel: "stylesheet", href: appCss },
-    ],
+    links: [{ rel: "stylesheet", href: appCss }],
   }),
   shellComponent: RootDocument,
 });
 
-function RootDocument({ children }: { readonly children: React.ReactNode }) {
-  // Debug: check env vars
-  // eslint-disable-next-line no-console
-  console.log("[ENV DEBUG]", {
-    url: (import.meta as any).env?.VITE_SUPABASE_URL,
-    key: (import.meta as any).env?.VITE_SUPABASE_ANON_KEY,
-    keys: Object.keys((import.meta as any).env || {}).filter((k: string) => k.startsWith("VITE_")),
-  });
-
+function RootDocument({ children }: { readonly children: ReactNode }) {
   return (
     // suppress since we're updating the "dark" class in ThemeProvider
     <html lang="en" suppressHydrationWarning>

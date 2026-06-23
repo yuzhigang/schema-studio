@@ -2,7 +2,7 @@
 
 ## Essentials
 
-- Stack: TypeScript + React (TanStack Start) in a pnpm + Vite+ monorepo, with Drizzle ORM, shadcn/ui, and Better Auth.
+- Stack: TypeScript + React (TanStack Start) in a pnpm + Vite+ monorepo, with Supabase, shadcn/ui-style shared primitives, and TanStack Query.
 - Prefer shared `@repo/ui` components; add primitives via shadcn CLI (`pnpm ui add <component>`).
 - Use `lucide-react` for UI icons (use `Icon` suffix, e.g. `import { Loader2Icon } from "lucide-react"`); for brand icons use `@icons-pack/react-simple-icons` (e.g. `SiGithub`).
 - Use shared pnpm catalog versions (`pnpm-workspace.yaml`) via `catalog:`.

@@ -1,145 +1,91 @@
 # schema-studio
 
-> [!IMPORTANT]
-> This template requires [Vite+ `vp`](https://viteplus.dev/guide/#install-vp) and [pnpm](https://pnpm.io/installation) to be installed.
+Schema Studio is a TanStack Start monorepo for building a schema design workspace with Supabase
+authentication and shared UI packages.
 
-This project was scaffolded with `create-mugnavo` from commit [`c910a70`](https://github.com/mugnavo/tanstarter-plus/tree/c910a70da547c07ec17145943db30d484dfb90bc). See the [template changelog](https://github.com/mugnavo/tanstarter-plus/compare/c910a70da547c07ec17145943db30d484dfb90bc...main) for newer changes.
+## Stack
 
+- TypeScript, React 19, TanStack Start, TanStack Router, TanStack Query
+- Vite+, pnpm workspaces, shared pnpm catalog versions
+- Tailwind CSS, shadcn/ui-style primitives, Base UI, lucide-react
+- Supabase Auth with GitHub and Microsoft OAuth
+- Cloudflare Pages-ready Nitro output
+
+## Workspace
+
+```text
+apps/
+  web/          TanStack Start web app
+packages/
+  auth/         Supabase auth helpers, server functions, route query hooks
+  db/           Supabase browser, server, and SSR clients
+  ui/           Shared UI primitives and theme utilities
+tooling/
+  tsconfig/     Shared TypeScript configuration
 ```
-pnpm create mugnavo -t monorepo
-```
 
-- [Vite Plus](https://viteplus.dev/) + pnpm workspaces with [catalogs](https://pnpm.io/catalogs)
-- [React 19](https://react.dev) + [React Compiler](https://react.dev/learn/react-compiler)
-- TanStack [Start](https://tanstack.com/start/latest) + [Router](https://tanstack.com/router/latest) + [Query](https://tanstack.com/query/latest) + [Form](https://tanstack.com/form/latest)
-- [Vite 8](https://vite.dev/) + [Nitro v3](https://nitro.build/)
-- [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Base UI](https://base-ui.com/) (base-luma, [`--preset b1aIaoaxs`](https://ui.shadcn.com/create?preset=b1aIaoaxs&base=base&template=start&pointer=true))
-- [Drizzle ORM v1](https://orm.drizzle.team/docs/relations-v1-v2) + PostgreSQL
-- [Better Auth](https://www.better-auth.com/)
+## Requirements
+
+- Node.js 22 or newer
+- pnpm 11
+- Vite+ `vp`
+
+Install Vite+ if needed:
 
 ```sh
-├── apps
-│    ├── web                    # TanStack Start web app
-├── packages
-│    ├── auth                   # Better Auth
-│    ├── db                     # Drizzle ORM + Drizzle Kit + PostgreSQL
-│    └── ui                     # shadcn/ui primitives & utils
-├── tooling
-│    └── tsconfig               # Shared TypeScript configuration
-├── vite.config.ts
-├── LICENSE
-└── README.md
+pnpm add -g vite-plus
 ```
 
-## Table of Contents
+## Environment
 
-- [Getting Started](#getting-started)
-- [Deploying to production](#deploying-to-production)
-- [Issue watchlist](#issue-watchlist)
-- [Goodies](#goodies)
-  - [Git hooks](#git-hooks)
-  - [Scripts](#scripts)
-  - [Utilities](#utilities)
-- [Ecosystem](#ecosystem)
+Create local environment variables before running the app:
 
-## Getting Started
+```sh
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
 
-> [!IMPORTANT]
-> This template requires [Vite+ `vp`](https://viteplus.dev/guide/#install-vp) and [pnpm](https://pnpm.io/installation) to be installed.
+For Cloudflare Pages, configure the same values in the project environment settings. See
+[`apps/web/wrangler.toml`](./apps/web/wrangler.toml).
 
-1. [Use this template](https://github.com/new?template_name=tanstarter-plus&template_owner=mugnavo) or create a project using our CLI:
+## Development
 
-   ```
-   pnpm create mugnavo -t monorepo
-   ```
+Install dependencies after pulling changes:
 
-2. Create a `.env` file in `/apps/web` based on [`.env.example`](./apps/web/.env.example).
+```sh
+vp install
+```
 
-3. Generate the initial migration with drizzle-kit, then apply to your database:
+Run the web app:
 
-   ```sh
-   pnpm db generate
-   pnpm db migrate
-   ```
+```sh
+pnpm dev:web
+```
 
-   https://orm.drizzle.team/docs/migrations
+Common validation commands:
 
-4. Run the development server:
+```sh
+pnpm check
+pnpm lint
+pnpm build:web
+```
 
-   ```sh
-   pnpm dev
-   ```
+Vitest is available through Vite+, but the repository currently has no test files.
 
-   The development server should now be running at [http://localhost:3000](http://localhost:3000).
+## Useful Scripts
 
-> [!TIP]
-> If you want to run a local Postgres instance via Docker Compose with the dev server, you can use the [dev.sh](./dev.sh) script:
->
-> ```sh
-> ./dev.sh # runs "pnpm run --recursive --parallel dev"
-> # or
-> ./dev.sh web # runs "pnpm run --filter=@repo/web dev"
-> ```
+- `pnpm check` - format, lint, and type-check through Vite+
+- `pnpm lint` - type-aware lint and type-check
+- `pnpm format` - format files with Oxfmt
+- `pnpm build:web` - build the TanStack Start web app
+- `pnpm ui add <component>` - add shared UI primitives through the shadcn CLI
+- `pnpm tanstack ... --json` - query TanStack documentation
 
-## Deploying to production
+## Auth Notes
 
-The [vite config](./apps/web/vite.config.ts#L45-L46) is configured to use Nitro by default, which supports many [deployment presets](https://nitro.build/deploy) like Netlify, Vercel, Node.js, and more.
-
-Refer to the [TanStack Start hosting docs](https://tanstack.com/start/latest/docs/framework/react/guide/hosting) for more information.
-
-### Build caching
-
-Vite+ has support for [caching](https://viteplus.dev/guide/cache) via Vite Task. A `build` task is configured in [`apps/web/vite.config.ts`](./apps/web/vite.config.ts) that can enable faster builds via caching. When deploying, use `vp run build` as the build command.
-
-> [!IMPORTANT]
-> Task caching is **_currently disabled_** in the root [`vite.config.ts`](./vite.config.ts#L15-L20) since Vite+ only replays terminal output for now, not build artifacts. If your platform preserves build outputs between deployments, you can re-enable it. See [this issue](https://github.com/mugnavo/tanstarter-plus/issues/8) for more details.
-
-## Issue watchlist
-
-- [Template changelog](https://github.com/mugnavo/tanstarter-plus/compare/c910a70da547c07ec17145943db30d484dfb90bc...main) - Track template updates since this project was created.
-- [Router/Start issues](https://github.com/TanStack/router/issues) - TanStack Start is in RC.
-- [Devtools releases](https://github.com/TanStack/devtools/releases) - TanStack Devtools is in alpha and may still have breaking changes.
-- [Nitro v3 beta](https://nitro.build/blog/v3-beta) - This template is configured with Nitro v3 beta by default.
-- [Drizzle ORM v1 RC](https://orm.drizzle.team/docs/relations-v1-v2) - Drizzle ORM v1 is in RC with relations v2.
-- [Better Auth experimental Drizzle adapter](https://github.com/better-auth/better-auth/pull/9489) - We're using a separate branch of Better Auth's Drizzle adapter that supports Drizzle relations v2.
-- [Vite+ issues](https://github.com/voidzero-dev/vite-plus/issues) - Vite+ is in alpha.
-
-## Goodies
-
-#### Git hooks
-
-We use [Vite+ Commit Hooks](https://viteplus.dev/guide/commit-hooks) to run git hooks with the following tools:
-
-- [`vp staged`](https://viteplus.dev/guide/commit-hooks#vp-staged) - Run Oxfmt to format staged files on commit (`pre-commit`).
-
-#### Scripts
-
-This template is configured for **[pnpm](https://pnpm.io/)** by default. Check the root [package.json](./package.json) and each workspace package's `package.json` for the full list of available scripts.
-
-- **`auth:generate`** - Regenerate the [auth db schema](./packages/db/src/schema/auth.schema.ts) if you've made changes to your Better Auth [config](./packages/auth/src/auth.ts).
-- **`ui`** - The shadcn/ui CLI. (e.g. `pnpm ui add button`)
-- **`format`**, **`lint`** - Run Oxfmt and Oxlint, or both via `pnpm check`.
-- **`deps`** - Selectively upgrade dependencies via taze.
-
-> [!NOTE]
-> To switch to another package manager (e.g., bun or npm), you'll need to replace or remove [`pnpm-workspace.yaml`](./pnpm-workspace.yaml), which uses pnpm [catalogs](https://pnpm.io/catalogs). Bun and Yarn have their own equivalents, but the file formats may differ.
-
-#### Utilities
-
-- [`/auth/src/tanstack/middleware.ts`](./packages/auth/src/tanstack/middleware.ts) - Sample middleware for enforcing authentication on server functions & API routes.
-- [`/web/src/components/theme-toggle.tsx`](./apps/web/src/components/theme-toggle.tsx), [`/ui/lib/theme-provider.tsx`](./packages/ui/lib/theme-provider.tsx) - A theme toggle and provider for toggling between light and dark mode.
-
-## License
-
-Code in this template is public domain via [Unlicense](./LICENSE). Feel free to remove or replace for your own project.
-
-## Ecosystem
-
-- [@tanstack/intent](https://tanstack.com/intent/latest/docs/getting-started/quick-start-consumers) - Up-to-date skills for your AI agents, auto-synchronized from your installed dependencies.
-- [awesome-tanstack-start](https://github.com/Balastrong/awesome-tanstack-start) - A curated list of awesome resources for TanStack Start.
-- [shadcn/ui Directory](https://ui.shadcn.com/docs/directory), [MCP](https://ui.shadcn.com/docs/mcp), [shoogle.dev](https://shoogle.dev/) - Component directories & registries for shadcn/ui.
-
-## Related templates
-
-- [mugnavo/tanstarter](https://github.com/mugnavo/tanstarter) - The original minimal version that this template is based on.
-- [tsu-moe/tsu-stack](https://github.com/tsu-moe/tsu-stack) - An opinionated and batteries-included monorepo template from Luzefiru, built on tanstarter-plus, with Paraglide.js (i18n), Hono, oRPC, and more.
+Route guards under `apps/web/src/routes/_auth` protect page rendering. Server functions that require
+authentication must also use `authMiddleware` from `@repo/auth/tanstack/middleware`; route guards do
+not protect RPC endpoints by themselves.

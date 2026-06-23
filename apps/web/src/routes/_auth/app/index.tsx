@@ -7,29 +7,18 @@ export const Route = createFileRoute("/_auth/app/")({
 
 function AppIndex() {
   const { user } = useAuthSuspense();
-  // We can also use Route.useRouteContext() which uses loader/beforeLoad data from parent layouts.
-  // But useAuth() or useAuthSuspense() is preferred for direct TanStack Query revalidation,
-  // since beforeLoad only re-runs on navigation.
+  const displayName = user?.user_metadata?.name || user?.email || "Authenticated user";
 
   return (
-    <div className="flex flex-col items-center gap-3 text-center text-sm">
-      <pre className="mb-1 rounded-md border bg-card p-1 text-xs text-card-foreground">
-        _auth/app/index.tsx
-      </pre>
-
-      <div>
-        User from route context:
-        <span className="mt-0.5 block font-mono text-xs">
-          {user?.user_metadata?.name || user?.email}
-        </span>
-      </div>
-
-      <div>
-        <p>The /app index page, a protected route, since it is under the _auth layout:</p>
-        <pre className="mx-auto mt-0.5 block w-fit rounded-md border bg-card p-1 text-xs text-card-foreground">
-          _auth/route.tsx
-        </pre>
-      </div>
+    <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
+      <section className="rounded-md border bg-background p-4">
+        <p className="text-sm text-muted-foreground">Signed in as</p>
+        <h2 className="mt-1 text-lg font-semibold">{displayName}</h2>
+      </section>
+      <section className="rounded-md border bg-background p-4">
+        <p className="text-sm text-muted-foreground">Current area</p>
+        <h2 className="mt-1 text-lg font-semibold">Protected workspace</h2>
+      </section>
     </div>
   );
 }
