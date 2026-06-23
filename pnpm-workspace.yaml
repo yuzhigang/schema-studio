@@ -5,6 +5,8 @@ packages:
 allowBuilds:
   esbuild: true
   msw: false
+  sharp: true
+  workerd: true
 
 catalog:
   "@babel/core": ^7.29.7
