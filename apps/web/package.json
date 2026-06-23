@@ -7,7 +7,7 @@
     "preview": "vp preview",
     "start": "node .output/server/index.mjs",
     "ui": "vpx shadcn@latest",
-    "deploy:cf": "wrangler pages deploy --project-name schema-studio --commit-dirty=true"
+    "deploy:cf": "wrangler deploy --config .output/server/wrangler.json"
   },
   "dependencies": {
     "@fontsource-variable/inter": "catalog:",

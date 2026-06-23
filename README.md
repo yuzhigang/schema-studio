@@ -9,7 +9,7 @@ authentication and shared UI packages.
 - Vite+, pnpm workspaces, shared pnpm catalog versions
 - Tailwind CSS, shadcn/ui-style primitives, Base UI, lucide-react
 - Supabase Auth with GitHub and Microsoft OAuth
-- Cloudflare Pages-ready Nitro output
+- Cloudflare Workers-ready Nitro output
 
 ## Workspace
 
@@ -48,8 +48,24 @@ SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-For Cloudflare Pages, configure the same values in the project environment settings. See
+For Cloudflare Workers, configure the same values in the project variables and secrets. See
 [`apps/web/wrangler.toml`](./apps/web/wrangler.toml).
+
+## Cloudflare Workers Deploy
+
+This app builds a Nitro Worker when `CF_WORKERS=1` is present:
+
+```sh
+CF_WORKERS=1 pnpm build:web
+pnpm --filter @repo/web deploy:cf
+```
+
+In Cloudflare Workers Builds, keep the repository root as `/` and use:
+
+```sh
+CF_WORKERS=1 pnpm build:web
+cd apps/web && npx wrangler deploy --config .output/server/wrangler.json
+```
 
 ## Development
 
