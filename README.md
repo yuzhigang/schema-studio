@@ -48,8 +48,25 @@ SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-For Cloudflare Workers, configure the same values in the project variables and secrets. See
-[`apps/web/wrangler.toml`](./apps/web/wrangler.toml).
+For Cloudflare Workers Builds, configure these as **Build variables** because Vite embeds
+them into the browser bundle at build time:
+
+```sh
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Also configure these as Worker **runtime variables/secrets** for server-side auth:
+
+```sh
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+The anon key is public by design, but it still must be present during the build. If `/login`
+reports that Supabase URL/API key are missing, update the Workers Builds variables and rebuild.
+See [`apps/web/wrangler.toml`](./apps/web/wrangler.toml).
 
 ## Cloudflare Workers Deploy
 

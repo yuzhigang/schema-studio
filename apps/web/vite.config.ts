@@ -4,7 +4,31 @@ import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
+import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
+
+function validateBuildEnvironment(): Plugin {
+  return {
+    name: "schema-studio:validate-build-environment",
+    configResolved(config) {
+      if (config.command !== "build") {
+        return;
+      }
+
+      const missing = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"].filter((name) => {
+        const value = config.env[name];
+        return typeof value !== "string" || value.trim() === "";
+      });
+
+      if (missing.length > 0) {
+        throw new Error(
+          `Missing build environment variables: ${missing.join(", ")}. ` +
+            "Set them in Cloudflare Workers Builds > Settings > Build > Variables and secrets.",
+        );
+      }
+    },
+  };
+}
 
 export default defineConfig({
   run: {
@@ -45,6 +69,7 @@ export default defineConfig({
     port: 3000,
   },
   plugins: [
+    validateBuildEnvironment(),
     devtools(),
     tanstackStart(),
     // https://tanstack.com/start/latest/docs/framework/react/guide/hosting

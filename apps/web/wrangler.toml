@@ -6,11 +6,13 @@ compatibility_flags = ["nodejs_compat"]
 # with the Worker entrypoint and static assets binding.
 # Deploy with: wrangler deploy --config .output/server/wrangler.json
 
-# Environment variables for production
+# Cloudflare Workers Builds also needs these build variables:
+# VITE_SUPABASE_URL
+# VITE_SUPABASE_ANON_KEY
+#
 # Set runtime variables in Cloudflare Dashboard > Workers & Pages > schema-studio
 # > Settings > Variables & Secrets.
 # [env.production.vars]
 # SUPABASE_URL = ""
+# SUPABASE_ANON_KEY = ""
 # SUPABASE_SERVICE_ROLE_KEY = ""
-# VITE_SUPABASE_URL = ""
-# VITE_SUPABASE_ANON_KEY = ""
