@@ -18,7 +18,7 @@ export function ProjectSidebar({ activeProjectId, onProjectChange }: ProjectSide
   );
 
   return (
-    <aside className="flex w-[212px] shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="flex h-full w-full shrink-0 flex-col bg-white">
       <div className="flex h-[58px] items-center justify-between px-3">
         <h2 className="text-sm font-semibold text-slate-900">项目</h2>
         <div className="flex items-center gap-1">

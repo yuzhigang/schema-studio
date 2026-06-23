@@ -1,6 +1,7 @@
 import { Input } from "@repo/ui/components/input";
+import { cn } from "@repo/ui/lib/utils";
 import { LayersIcon, SearchIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type PointerEvent } from "react";
 
 import { DesignerHeader } from "./designer-header";
 import { DesignerTabs, type DesignerTabId } from "./designer-tabs";
@@ -17,11 +18,24 @@ import { SchemaTree } from "./schema-tree";
 import { TableMetadataForm } from "./table-metadata-form";
 import { WorkspaceRail } from "./workspace-rail";
 
+type ResizeTarget = "project" | "tree";
+
+type ResizeState = {
+  target: ResizeTarget;
+  startX: number;
+  startWidth: number;
+  minWidth: number;
+  maxWidth: number;
+};
+
 export function SchemaStudioPage() {
   const [activeProjectId, setActiveProjectId] = useState(initialProjectId);
   const [activeTableId, setActiveTableId] = useState(initialTableId);
   const [activeTab, setActiveTab] = useState<DesignerTabId>("design");
   const [savedLabel, setSavedLabel] = useState("保存");
+  const [projectPanelWidth, setProjectPanelWidth] = useState(212);
+  const [treePanelWidth, setTreePanelWidth] = useState(430);
+  const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const table = findTableById(activeTableId);
   const tablePath = getTablePath(activeTableId);
   const [tableDrafts, setTableDrafts] = useState<Record<string, TableMetadata>>(() => ({
@@ -54,6 +68,64 @@ export function SchemaStudioPage() {
     window.setTimeout(() => setSavedLabel("保存"), 1200);
   }
 
+  function startResize(
+    target: ResizeTarget,
+    startWidth: number,
+    minWidth: number,
+    maxWidth: number,
+  ) {
+    return (event: PointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      setResizeState({
+        target,
+        startX: event.clientX,
+        startWidth,
+        minWidth,
+        maxWidth,
+      });
+    };
+  }
+
+  useEffect(() => {
+    if (!resizeState) {
+      return;
+    }
+
+    const currentResize = resizeState;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function handlePointerMove(event: globalThis.PointerEvent) {
+      const nextWidth = clamp(
+        currentResize.startWidth + event.clientX - currentResize.startX,
+        currentResize.minWidth,
+        currentResize.maxWidth,
+      );
+
+      if (currentResize.target === "project") {
+        setProjectPanelWidth(nextWidth);
+      } else {
+        setTreePanelWidth(nextWidth);
+      }
+    }
+
+    function handlePointerUp() {
+      setResizeState(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [resizeState]);
+
   return (
     <div className="flex h-svh min-w-[1180px] flex-col overflow-hidden bg-slate-50 text-slate-900">
       <header className="flex h-[58px] shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3">
@@ -73,8 +145,22 @@ export function SchemaStudioPage() {
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <WorkspaceRail />
-        <ProjectSidebar activeProjectId={activeProjectId} onProjectChange={setActiveProjectId} />
-        <SchemaTree activeTableId={activeTableId} onTableChange={setActiveTableId} />
+        <div className="h-full shrink-0" style={{ width: projectPanelWidth }}>
+          <ProjectSidebar activeProjectId={activeProjectId} onProjectChange={setActiveProjectId} />
+        </div>
+        <ResizeDivider
+          label="调整项目列表宽度"
+          active={resizeState?.target === "project"}
+          onPointerDown={startResize("project", projectPanelWidth, 168, 320)}
+        />
+        <div className="h-full shrink-0" style={{ width: treePanelWidth }}>
+          <SchemaTree activeTableId={activeTableId} onTableChange={setActiveTableId} />
+        </div>
+        <ResizeDivider
+          label="调整表格列表宽度"
+          active={resizeState?.target === "tree"}
+          onPointerDown={startResize("tree", treePanelWidth, 300, 640)}
+        />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <DesignerHeader
             path={tablePath}
@@ -99,4 +185,45 @@ export function SchemaStudioPage() {
       </div>
     </div>
   );
+}
+
+function ResizeDivider({
+  label,
+  active,
+  onPointerDown,
+}: {
+  label: string;
+  active: boolean;
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      aria-orientation="vertical"
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      className={cn(
+        "group relative w-2 shrink-0 cursor-col-resize bg-white transition-colors outline-none hover:bg-blue-50 focus-visible:bg-blue-50",
+        active && "bg-blue-50",
+      )}
+    >
+      <div
+        className={cn(
+          "absolute top-0 left-1/2 h-full w-px -translate-x-1/2 bg-slate-200 transition-colors group-hover:bg-blue-500 group-focus-visible:bg-blue-500",
+          active && "bg-blue-500",
+        )}
+      />
+      <div
+        className={cn(
+          "absolute top-1/2 left-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-300 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100",
+          active && "bg-blue-500 opacity-100",
+        )}
+      />
+    </div>
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
