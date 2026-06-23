@@ -6,12 +6,6 @@ import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite-plus";
 
-const cloudflarePreset = process.env.CF_PAGES
-  ? "cloudflare-pages"
-  : process.env.CF_WORKERS
-    ? "cloudflare-module"
-    : undefined;
-
 export default defineConfig({
   run: {
     // Vite Task
@@ -58,9 +52,7 @@ export default defineConfig({
       // fixes SSR issues with Vite 8:
       // https://discord.com/channels/719702312431386674/1490005967067414608/1490634230458224751
       traceDeps: ["react", "react-dom"],
-      // Cloudflare Workers: set CF_WORKERS=1 in the build command.
-      // Cloudflare Pages is retained as an explicit fallback with CF_PAGES=1.
-      preset: cloudflarePreset,
+      preset: "cloudflare-module",
     }),
     viteReact(),
     // https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#react-compiler

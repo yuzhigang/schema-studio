@@ -53,17 +53,17 @@ For Cloudflare Workers, configure the same values in the project variables and s
 
 ## Cloudflare Workers Deploy
 
-This app builds a Nitro Worker when `CF_WORKERS=1` is present:
+This app builds a Nitro Worker by default:
 
 ```sh
-CF_WORKERS=1 pnpm build:web
+pnpm build:web
 pnpm --filter @repo/web deploy:cf
 ```
 
 In Cloudflare Workers Builds, keep the repository root as `/` and use:
 
 ```sh
-CF_WORKERS=1 pnpm build:web
+pnpm build:web
 cd apps/web && npx wrangler deploy --config .output/server/wrangler.json
 ```
 
