@@ -11,9 +11,11 @@ import {
   getTablePath,
   initialProjectId,
   initialTableId,
+  schemaFolders,
   type TableMetadata,
 } from "./mock-data";
 import { ProjectSidebar } from "./project-sidebar";
+import { moveFieldInTable, moveFolder, moveTableInFolder } from "./schema-ordering";
 import { SchemaTree } from "./schema-tree";
 import { TableMetadataForm } from "./table-metadata-form";
 import { WorkspaceRail } from "./workspace-rail";
@@ -28,6 +30,11 @@ type ResizeState = {
   maxWidth: number;
 };
 
+type SelectedField = {
+  tableId: string;
+  fieldId: string;
+};
+
 export function SchemaStudioPage() {
   const [activeProjectId, setActiveProjectId] = useState(initialProjectId);
   const [activeTableId, setActiveTableId] = useState(initialTableId);
@@ -36,8 +43,10 @@ export function SchemaStudioPage() {
   const [projectPanelWidth, setProjectPanelWidth] = useState(212);
   const [treePanelWidth, setTreePanelWidth] = useState(430);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
-  const table = findTableById(activeTableId);
-  const tablePath = getTablePath(activeTableId);
+  const [folders, setFolders] = useState(schemaFolders);
+  const [selectedField, setSelectedField] = useState<SelectedField | null>(null);
+  const table = findTableById(activeTableId, folders);
+  const tablePath = getTablePath(activeTableId, folders);
   const [tableDrafts, setTableDrafts] = useState<Record<string, TableMetadata>>(() => ({
     [table.id]: {
       name: table.name,
@@ -154,7 +163,26 @@ export function SchemaStudioPage() {
           onPointerDown={startResize("project", projectPanelWidth, 168, 320)}
         />
         <div className="h-full shrink-0" style={{ width: treePanelWidth }}>
-          <SchemaTree activeTableId={activeTableId} onTableChange={setActiveTableId} />
+          <SchemaTree
+            folders={folders}
+            activeTableId={activeTableId}
+            selectedFieldTableId={selectedField?.tableId ?? null}
+            selectedFieldId={selectedField?.fieldId ?? null}
+            onFolderMove={(activeId, overId) =>
+              setFolders((current) => moveFolder(current, activeId, overId))
+            }
+            onTableMove={(folderId, activeId, overId) =>
+              setFolders((current) => moveTableInFolder(current, folderId, activeId, overId))
+            }
+            onFieldMove={(tableId, activeId, overId) =>
+              setFolders((current) => moveFieldInTable(current, tableId, activeId, overId))
+            }
+            onTableChange={(tableId) => {
+              setActiveTableId(tableId);
+              setSelectedField(null);
+            }}
+            onFieldChange={(tableId, fieldId) => setSelectedField({ tableId, fieldId })}
+          />
         </div>
         <ResizeDivider
           label="调整表格列表宽度"
@@ -173,7 +201,13 @@ export function SchemaStudioPage() {
             {activeTab === "design" ? (
               <div className="pt-4">
                 <TableMetadataForm metadata={metadata} onMetadataChange={updateMetadata} />
-                <FieldGrid fields={table.fields} />
+                <FieldGrid
+                  fields={table.fields}
+                  selectedFieldId={
+                    selectedField?.tableId === table.id ? selectedField.fieldId : null
+                  }
+                  onFieldSelect={(fieldId) => setSelectedField({ tableId: table.id, fieldId })}
+                />
               </div>
             ) : (
               <div className="mt-4 rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">

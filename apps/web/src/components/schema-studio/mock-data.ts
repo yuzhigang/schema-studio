@@ -251,22 +251,20 @@ export const schemaFolders: SchemaFolder[] = [
 export const initialProjectId = schemaProjects[0].id;
 export const initialTableId = "event-definition";
 
-export function findTableById(tableId: string) {
-  for (const folder of schemaFolders) {
+export function findTableById(tableId: string, folders = schemaFolders) {
+  for (const folder of folders) {
     const table = folder.tables.find((item) => item.id === tableId);
     if (table) {
       return table;
     }
   }
 
-  return schemaFolders.flatMap((folder) => folder.tables)[0];
+  return folders.flatMap((folder) => folder.tables)[0];
 }
 
-export function getTablePath(tableId: string) {
-  const table = findTableById(tableId);
-  const folder = schemaFolders.find((item) =>
-    item.tables.some((tableItem) => tableItem.id === table.id),
-  );
+export function getTablePath(tableId: string, folders = schemaFolders) {
+  const table = findTableById(tableId, folders);
+  const folder = folders.find((item) => item.tables.some((tableItem) => tableItem.id === table.id));
 
   return {
     projectName: schemaProjects[0].name,

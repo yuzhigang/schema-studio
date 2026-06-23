@@ -22,7 +22,13 @@ const typeStyles: Record<SchemaFieldType, string> = {
   boolean: "border-emerald-300 bg-emerald-50 text-emerald-600",
 };
 
-export function FieldGrid({ fields }: { fields: SchemaField[] }) {
+type FieldGridProps = {
+  fields: SchemaField[];
+  selectedFieldId: string | null;
+  onFieldSelect: (fieldId: string) => void;
+};
+
+export function FieldGrid({ fields, selectedFieldId, onFieldSelect }: FieldGridProps) {
   return (
     <section className="mt-5">
       <div className="mb-3 flex items-center justify-between">
@@ -54,7 +60,14 @@ export function FieldGrid({ fields }: { fields: SchemaField[] }) {
           </thead>
           <tbody>
             {fields.length > 0 ? (
-              fields.map((field) => <FieldRow key={field.id} field={field} />)
+              fields.map((field) => (
+                <FieldRow
+                  key={field.id}
+                  field={field}
+                  selected={selectedFieldId === field.id}
+                  onFieldSelect={onFieldSelect}
+                />
+              ))
             ) : (
               <tr>
                 <td className="h-24 text-center text-slate-500" colSpan={11}>
@@ -69,9 +82,23 @@ export function FieldGrid({ fields }: { fields: SchemaField[] }) {
   );
 }
 
-function FieldRow({ field }: { field: SchemaField }) {
+function FieldRow({
+  field,
+  selected,
+  onFieldSelect,
+}: {
+  field: SchemaField;
+  selected: boolean;
+  onFieldSelect: (fieldId: string) => void;
+}) {
   return (
-    <tr className="h-10 border-b border-slate-200 last:border-b-0 hover:bg-slate-50">
+    <tr
+      onClick={() => onFieldSelect(field.id)}
+      className={cn(
+        "h-10 cursor-pointer border-b border-slate-200 last:border-b-0 hover:bg-slate-50",
+        selected && "bg-blue-50 hover:bg-blue-50",
+      )}
+    >
       <td className="px-2 text-slate-400">
         <div className="flex items-center gap-1">
           <GripVerticalIcon className="size-4" />
