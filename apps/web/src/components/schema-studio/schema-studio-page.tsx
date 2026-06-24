@@ -1,23 +1,47 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@repo/ui/components/alert-dialog";
 import { Input } from "@repo/ui/components/input";
 import { cn } from "@repo/ui/lib/utils";
-import { LayersIcon, SearchIcon } from "lucide-react";
+import { useIsMutating, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { LayersIcon, Loader2Icon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useState, type PointerEvent } from "react";
 
 import { DesignerHeader } from "./designer-header";
 import { DesignerTabs, type DesignerTabId } from "./designer-tabs";
 import { FieldGrid } from "./field-grid";
-import {
-  findTableById,
-  getTablePath,
-  initialProjectId,
-  initialTableId,
-  schemaFolders,
-  type TableMetadata,
-} from "./mock-data";
 import { ProjectSidebar } from "./project-sidebar";
 import { moveFieldInTable, moveFolder, moveTableInFolder } from "./schema-ordering";
+import {
+  useCreateColumn,
+  useCreateTable,
+  useDeleteCategory,
+  useDeleteColumn,
+  useDeleteTable,
+  useImportProject,
+  useMoveColumnToTable,
+  useMoveTableToFolder,
+  useProjectTree,
+  useReorderCategories,
+  useReorderColumns,
+  useReorderTables,
+  useTeamProjects,
+  useUpdateColumn,
+  useUpdateTable,
+} from "./schema-queries";
 import { SchemaTree } from "./schema-tree";
+import type { SchemaField, TableMetadata } from "./schema-types";
+import { findFirstTable, findTableByShortCode, getTablePath } from "./schema-types";
 import { TableMetadataForm } from "./table-metadata-form";
+import { useProjectPanelWidth, useTreePanelWidth } from "./use-panel-width";
 import { WorkspaceRail } from "./workspace-rail";
 
 type ResizeTarget = "project" | "tree";
@@ -30,30 +54,135 @@ type ResizeState = {
   maxWidth: number;
 };
 
+type SelectedNode =
+  | { type: "folder"; id: string }
+  | { type: "table"; id: string }
+  | { type: "field"; tableId: string; fieldId: string }
+  | null;
+
 type SelectedField = {
   tableId: string;
   fieldId: string;
 };
 
-export function SchemaStudioPage() {
-  const [activeProjectId, setActiveProjectId] = useState(initialProjectId);
-  const [activeTableId, setActiveTableId] = useState(initialTableId);
+export function SchemaStudioPage({
+  teamShortCode,
+  projectShortCode,
+  tableShortCode,
+}: {
+  teamShortCode: string;
+  projectShortCode?: string;
+  tableShortCode?: string;
+}) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { data: projects = [] } = useTeamProjects(teamShortCode);
+  const activeProject = useMemo(
+    () => projects.find((project) => project.shortCode === projectShortCode),
+    [projects, projectShortCode],
+  );
+  const activeProjectId = activeProject?.id ?? "";
+  const {
+    data: folders = [],
+    isLoading: treeLoading,
+    error: treeError,
+  } = useProjectTree(activeProjectId);
+
+  const activeTable = useMemo(
+    () => (tableShortCode && findTableByShortCode(tableShortCode, folders)) || undefined,
+    [tableShortCode, folders],
+  );
+  const activeTableId = activeTable?.id ?? "";
+
+  useEffect(() => {
+    if (tableShortCode || treeLoading || !activeProjectId || !projectShortCode) {
+      return;
+    }
+
+    const firstTable = findFirstTable(folders);
+    if (!firstTable) {
+      return;
+    }
+
+    void navigate({
+      to: "/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode",
+      params: {
+        teamShortCode,
+        projectShortCode,
+        tableShortCode: firstTable.shortCode,
+      },
+    });
+  }, [
+    tableShortCode,
+    treeLoading,
+    activeProjectId,
+    projectShortCode,
+    folders,
+    navigate,
+    teamShortCode,
+  ]);
+
   const [activeTab, setActiveTab] = useState<DesignerTabId>("design");
   const [savedLabel, setSavedLabel] = useState("保存");
-  const [projectPanelWidth, setProjectPanelWidth] = useState(212);
-  const [treePanelWidth, setTreePanelWidth] = useState(430);
+  const {
+    width: projectPanelWidth,
+    setWidth: setProjectPanelWidth,
+    minWidth: projectPanelMinWidth,
+    maxWidth: projectPanelMaxWidth,
+  } = useProjectPanelWidth();
+  const {
+    width: treePanelWidth,
+    setWidth: setTreePanelWidth,
+    minWidth: treePanelMinWidth,
+    maxWidth: treePanelMaxWidth,
+  } = useTreePanelWidth();
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
-  const [folders, setFolders] = useState(schemaFolders);
+  const [selectedNode, setSelectedNode] = useState<SelectedNode>(null);
   const [selectedField, setSelectedField] = useState<SelectedField | null>(null);
-  const table = findTableById(activeTableId, folders);
-  const tablePath = getTablePath(activeTableId, folders);
-  const [tableDrafts, setTableDrafts] = useState<Record<string, TableMetadata>>(() => ({
-    [table.id]: {
-      name: table.name,
-      logicalName: table.logicalName,
-      description: table.description,
-    },
-  }));
+  const [alert, setAlert] = useState<{ open: boolean; title: string; message: string }>({
+    open: false,
+    title: "提示",
+    message: "",
+  });
+  const [confirm, setConfirm] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "确认",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  const isMutating = useIsMutating();
+
+  const table = useMemo(() => {
+    return (
+      activeTable ?? {
+        id: "",
+        shortCode: "",
+        name: "",
+        logicalName: "",
+        description: "",
+        version: 1,
+        versionSelected: true,
+        fields: [],
+      }
+    );
+  }, [activeTable]);
+
+  const tablePath = useMemo(
+    () => getTablePath(activeTableId, folders, activeProject?.name ?? ""),
+    [activeTableId, folders, activeProject?.name],
+  );
+
+  const [tableDrafts, setTableDrafts] = useState<Record<string, TableMetadata>>({});
+  const [fieldDrafts, setFieldDrafts] = useState<Record<string, SchemaField[]>>({});
+  const [fieldHistory, setFieldHistory] = useState<
+    Record<string, { past: SchemaField[][]; future: SchemaField[][] }>
+  >({});
 
   const metadata = useMemo(() => {
     return (
@@ -65,6 +194,53 @@ export function SchemaStudioPage() {
     );
   }, [table, tableDrafts]);
 
+  const fields = useMemo(
+    () => fieldDrafts[table.id] ?? table.fields,
+    [fieldDrafts, table.id, table.fields],
+  );
+
+  useEffect(() => {
+    if (!table.id || fieldDrafts[table.id]) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks-js/set-state-in-effect
+    setFieldDrafts((current) => ({
+      ...current,
+      [table.id]: table.fields,
+    }));
+  }, [table.id, table.fields, fieldDrafts]);
+
+  useEffect(() => {
+    if (!table.id || tableDrafts[table.id]) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks-js/set-state-in-effect
+    setTableDrafts((current) => ({
+      ...current,
+      [table.id]: {
+        name: table.name,
+        logicalName: table.logicalName,
+        description: table.description,
+      },
+    }));
+  }, [table.id, table.name, table.logicalName, table.description, tableDrafts]);
+
+  const updateColumn = useUpdateColumn();
+  const updateTable = useUpdateTable();
+  const createTable = useCreateTable();
+  const createColumn = useCreateColumn();
+  const deleteCategory = useDeleteCategory();
+  const deleteTable = useDeleteTable();
+  const deleteColumn = useDeleteColumn();
+  const reorderCategories = useReorderCategories();
+  const reorderTables = useReorderTables();
+  const reorderColumns = useReorderColumns();
+  const moveTableToFolderMutation = useMoveTableToFolder();
+  const moveColumnToTableMutation = useMoveColumnToTable();
+  const importProject = useImportProject();
+
   function updateMetadata(nextMetadata: TableMetadata) {
     setTableDrafts((current) => ({
       ...current,
@@ -72,9 +248,230 @@ export function SchemaStudioPage() {
     }));
   }
 
-  function handleSave() {
-    setSavedLabel("已保存");
-    window.setTimeout(() => setSavedLabel("保存"), 1200);
+  function cloneFields(fields: SchemaField[]): SchemaField[] {
+    return JSON.parse(JSON.stringify(fields));
+  }
+
+  function getCurrentFields(): SchemaField[] {
+    return fieldDrafts[table.id] ?? table.fields;
+  }
+
+  function handleFieldsChange(nextFields: SchemaField[]) {
+    const currentFields = getCurrentFields();
+    if (JSON.stringify(currentFields) === JSON.stringify(nextFields)) {
+      return;
+    }
+
+    setFieldHistory((current) => {
+      const tableHistory = current[table.id] ?? { past: [], future: [] };
+      return {
+        ...current,
+        [table.id]: {
+          past: [...tableHistory.past, cloneFields(currentFields)],
+          future: [],
+        },
+      };
+    });
+
+    setFieldDrafts((current) => ({
+      ...current,
+      [table.id]: cloneFields(nextFields),
+    }));
+  }
+
+  function handleUndo() {
+    const tableHistory = fieldHistory[table.id];
+    if (!tableHistory || tableHistory.past.length === 0) {
+      return;
+    }
+
+    const currentFields = getCurrentFields();
+    const previousFields = tableHistory.past[tableHistory.past.length - 1];
+    setFieldHistory((current) => ({
+      ...current,
+      [table.id]: {
+        past: tableHistory.past.slice(0, -1),
+        future: [cloneFields(currentFields), ...tableHistory.future],
+      },
+    }));
+    setFieldDrafts((current) => ({
+      ...current,
+      [table.id]: cloneFields(previousFields),
+    }));
+  }
+
+  function handleRedo() {
+    const tableHistory = fieldHistory[table.id];
+    if (!tableHistory || tableHistory.future.length === 0) {
+      return;
+    }
+
+    const currentFields = getCurrentFields();
+    const nextFields = tableHistory.future[0];
+    setFieldHistory((current) => ({
+      ...current,
+      [table.id]: {
+        past: [...tableHistory.past, cloneFields(currentFields)],
+        future: tableHistory.future.slice(1),
+      },
+    }));
+    setFieldDrafts((current) => ({
+      ...current,
+      [table.id]: cloneFields(nextFields),
+    }));
+  }
+
+  function clearFieldDrafts() {
+    setFieldDrafts((current) => {
+      const next = { ...current };
+      delete next[table.id];
+      return next;
+    });
+    setFieldHistory((current) => {
+      const next = { ...current };
+      delete next[table.id];
+      return next;
+    });
+  }
+
+  function handleFieldAdd() {
+    if (!table.id) {
+      return;
+    }
+
+    handleFieldsChange([...fields, createEmptyField()]);
+  }
+
+  function handleFieldDelete(fieldId: string) {
+    if (!table.id) {
+      return;
+    }
+
+    handleFieldsChange(fields.filter((field) => field.id !== fieldId));
+  }
+
+  async function handleImportFile(file: File) {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (extension !== "dmj" && extension !== "sql") {
+      setAlert({
+        open: true,
+        title: "导入失败",
+        message: "仅支持 .dmj 和 .sql 后缀的文件",
+      });
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const { shortCode } = await importProject.mutateAsync({
+        content,
+        format: extension,
+        fileName: file.name,
+      });
+      await navigate({
+        to: "/team/$teamShortCode/project/$projectShortCode",
+        params: { teamShortCode, projectShortCode: shortCode },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "导入过程中出现未知错误";
+      setAlert({
+        open: true,
+        title: "导入失败",
+        message,
+      });
+    }
+  }
+
+  function handleFieldsReorder() {
+    // Drag reorder is handled locally via onFieldsChange.
+    // The final order is persisted when the user clicks Save.
+  }
+
+  async function handleSave() {
+    if (!activeProjectId || !table.id) {
+      return;
+    }
+
+    const originalFields = table.fields;
+    const originalMap = new Map(originalFields.map((field) => [field.id, field]));
+    const currentFields = fields;
+    const currentIds = new Set(currentFields.map((field) => field.id));
+
+    const deletedFields = originalFields.filter((field) => !currentIds.has(field.id));
+    const newFields = currentFields.filter((field) => field.id.startsWith("new-"));
+    const updatedFields = currentFields.filter((field) => {
+      if (field.id.startsWith("new-")) {
+        return false;
+      }
+      const original = originalMap.get(field.id);
+      return original && JSON.stringify(field) !== JSON.stringify(original);
+    });
+
+    const orderChanged =
+      JSON.stringify(currentFields.map((field) => field.id)) !==
+      JSON.stringify(originalFields.map((field) => field.id));
+
+    try {
+      await Promise.all(
+        deletedFields.map((field) =>
+          deleteColumn.mutateAsync({ projectId: activeProjectId, columnId: field.id }),
+        ),
+      );
+
+      await Promise.all(
+        updatedFields.map((field) =>
+          updateColumn.mutateAsync({
+            projectId: activeProjectId,
+            columnId: field.id,
+            patch: buildFieldPatch(field, originalMap.get(field.id)!),
+          }),
+        ),
+      );
+
+      const idMap = new Map<string, string>();
+      for (const field of newFields) {
+        const { id: tempId, ...rest } = field;
+        const createdId = await createColumn.mutateAsync({
+          projectId: activeProjectId,
+          tableId: table.id,
+          field: rest,
+        });
+        idMap.set(tempId, createdId);
+      }
+
+      if (newFields.length > 0 || deletedFields.length > 0 || orderChanged) {
+        const orderedIds = currentFields.map((field) =>
+          field.id.startsWith("new-") ? idMap.get(field.id)! : field.id,
+        );
+        await reorderColumns.mutateAsync({
+          projectId: activeProjectId,
+          tableId: table.id,
+          orderedColumnIds: orderedIds,
+        });
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: ["schema-studio", "project-tree", activeProjectId],
+      });
+      clearFieldDrafts();
+
+      updateTable.mutate(
+        { projectId: activeProjectId, tableId: table.id, metadata },
+        {
+          onSuccess: () => {
+            setSavedLabel("已保存");
+            window.setTimeout(() => setSavedLabel("保存"), 1200);
+          },
+        },
+      );
+    } catch (error) {
+      console.error("Save failed:", error);
+      setAlert({
+        open: true,
+        title: "保存失败",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   function startResize(
@@ -94,6 +491,20 @@ export function SchemaStudioPage() {
       });
     };
   }
+
+  useEffect(() => {
+    if (activeTableId && tableShortCode) {
+      // eslint-disable-next-line react-hooks-js/set-state-in-effect
+      setSelectedNode({ type: "table", id: activeTableId });
+      // eslint-disable-next-line react-hooks-js/set-state-in-effect
+      setSelectedField(null);
+    } else if (!activeTableId) {
+      // eslint-disable-next-line react-hooks-js/set-state-in-effect
+      setSelectedNode(null);
+      // eslint-disable-next-line react-hooks-js/set-state-in-effect
+      setSelectedField(null);
+    }
+  }, [activeTableId, tableShortCode]);
 
   useEffect(() => {
     if (!resizeState) {
@@ -133,10 +544,195 @@ export function SchemaStudioPage() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [resizeState]);
+  }, [resizeState, setProjectPanelWidth, setTreePanelWidth]);
+
+  function handleFolderMove(activeId: string, overId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    const nextFolders = moveFolder(folders, activeId, overId);
+    reorderCategories.mutate({
+      projectId: activeProjectId,
+      orderedCategoryIds: nextFolders.map((folder) => folder.id),
+    });
+  }
+
+  function handleTableMove(folderId: string, activeId: string, overId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    const nextFolders = moveTableInFolder(folders, folderId, activeId, overId);
+    const folder = nextFolders.find((item) => item.id === folderId);
+    if (!folder) {
+      return;
+    }
+
+    reorderTables.mutate({
+      projectId: activeProjectId,
+      folderId,
+      orderedTableIds: folder.tables.map((tableItem) => tableItem.id),
+    });
+  }
+
+  function handleFieldMove(tableId: string, activeId: string, overId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    const nextFolders = moveFieldInTable(folders, tableId, activeId, overId);
+    const folder = nextFolders.find((item) =>
+      item.tables.some((tableItem) => tableItem.id === tableId),
+    );
+    const tableItem = folder?.tables.find((item) => item.id === tableId);
+    if (!tableItem) {
+      return;
+    }
+
+    reorderColumns.mutate({
+      projectId: activeProjectId,
+      tableId,
+      orderedColumnIds: tableItem.fields.map((field) => field.id),
+    });
+  }
+
+  function handleTableMoveToFolder(tableId: string, folderId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    moveTableToFolderMutation.mutate({
+      projectId: activeProjectId,
+      tableId,
+      targetFolderId: folderId,
+    });
+  }
+
+  function handleFieldMoveToTable(fieldId: string, sourceTableId: string, targetTableId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    moveColumnToTableMutation.mutate({
+      projectId: activeProjectId,
+      columnId: fieldId,
+      targetTableId,
+    });
+  }
+
+  function handleAddTable(folderId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    createTable.mutate({ projectId: activeProjectId, folderId, metadata: createEmptyTable() });
+  }
+
+  function handleDeleteFolder(folderId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    setConfirm({
+      open: true,
+      title: "删除分组",
+      message: "确定删除该分组及其下所有表吗？",
+      onConfirm: () => {
+        deleteCategory.mutate({ projectId: activeProjectId, categoryId: folderId });
+        setConfirm((current) => ({ ...current, open: false }));
+      },
+    });
+  }
+
+  function handleAddField(tableId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    createColumn.mutate({ projectId: activeProjectId, tableId, field: createEmptyField() });
+  }
+
+  function handleDeleteTable(tableId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    setConfirm({
+      open: true,
+      title: "删除表",
+      message: "确定删除该表及其下所有字段吗？",
+      onConfirm: () => {
+        deleteTable.mutate({ projectId: activeProjectId, tableId });
+        setConfirm((current) => ({ ...current, open: false }));
+      },
+    });
+  }
+
+  function handleDeleteField(tableId: string, fieldId: string) {
+    if (!activeProjectId) {
+      return;
+    }
+
+    setConfirm({
+      open: true,
+      title: "删除字段",
+      message: "确定删除该字段吗？",
+      onConfirm: () => {
+        deleteColumn.mutate({ projectId: activeProjectId, columnId: fieldId });
+        setConfirm((current) => ({ ...current, open: false }));
+      },
+    });
+  }
 
   return (
     <div className="flex h-svh min-w-[1180px] flex-col overflow-hidden bg-slate-50 text-slate-900">
+      {isMutating > 0 && (
+        <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-900/5">
+          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 shadow-lg">
+            <Loader2Icon className="size-4 animate-spin text-blue-600" />
+            <span className="text-sm font-medium text-slate-700">处理中…</span>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog
+        open={alert.open}
+        onOpenChange={(open) => setAlert((current) => ({ ...current, open }))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{alert.title}</AlertDialogTitle>
+            <AlertDialogDescription>{alert.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setAlert((current) => ({ ...current, open: false }))}>
+              确定
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirm.open}
+        onOpenChange={(open) => setConfirm((current) => ({ ...current, open }))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirm.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirm.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setConfirm((current) => ({ ...current, open: false }))}
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirm.onConfirm}>确定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <header className="flex h-[58px] shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3">
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-600">
@@ -153,48 +749,111 @@ export function SchemaStudioPage() {
         </div>
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <WorkspaceRail />
+        <WorkspaceRail activeTeamShortCode={teamShortCode} />
         <div className="h-full shrink-0" style={{ width: projectPanelWidth }}>
-          <ProjectSidebar activeProjectId={activeProjectId} onProjectChange={setActiveProjectId} />
+          <ProjectSidebar
+            teamShortCode={teamShortCode}
+            activeProjectShortCode={projectShortCode}
+            onProjectChange={(shortCode) => {
+              setSelectedNode(null);
+              setSelectedField(null);
+              void navigate({
+                to: "/team/$teamShortCode/project/$projectShortCode",
+                params: { teamShortCode, projectShortCode: shortCode },
+              });
+            }}
+            onImportFile={handleImportFile}
+          />
         </div>
         <ResizeDivider
           label="调整项目列表宽度"
           active={resizeState?.target === "project"}
-          onPointerDown={startResize("project", projectPanelWidth, 168, 320)}
+          onPointerDown={startResize(
+            "project",
+            projectPanelWidth,
+            projectPanelMinWidth,
+            projectPanelMaxWidth,
+          )}
         />
         <div className="h-full shrink-0" style={{ width: treePanelWidth }}>
-          <SchemaTree
-            folders={folders}
-            activeTableId={activeTableId}
-            selectedFieldTableId={selectedField?.tableId ?? null}
-            selectedFieldId={selectedField?.fieldId ?? null}
-            onFolderMove={(activeId, overId) =>
-              setFolders((current) => moveFolder(current, activeId, overId))
-            }
-            onTableMove={(folderId, activeId, overId) =>
-              setFolders((current) => moveTableInFolder(current, folderId, activeId, overId))
-            }
-            onFieldMove={(tableId, activeId, overId) =>
-              setFolders((current) => moveFieldInTable(current, tableId, activeId, overId))
-            }
-            onTableChange={(tableId) => {
-              setActiveTableId(tableId);
-              setSelectedField(null);
-            }}
-            onFieldChange={(tableId, fieldId) => setSelectedField({ tableId, fieldId })}
-          />
+          {activeProjectId ? (
+            treeLoading ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                加载中…
+              </div>
+            ) : treeError ? (
+              <div className="flex h-full flex-col items-center justify-center px-4 text-center text-sm text-red-600">
+                <p>加载树失败</p>
+                <p className="mt-1 text-xs text-slate-500">{treeError.message}</p>
+              </div>
+            ) : folders.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                暂无分组
+              </div>
+            ) : (
+              <SchemaTree
+                folders={folders}
+                selectedNode={selectedNode}
+                activeTableShortCode={tableShortCode}
+                onFolderMove={handleFolderMove}
+                onTableMove={handleTableMove}
+                onFieldMove={handleFieldMove}
+                onTableMoveToFolder={handleTableMoveToFolder}
+                onFieldMoveToTable={handleFieldMoveToTable}
+                onAddTable={handleAddTable}
+                onDeleteFolder={handleDeleteFolder}
+                onAddField={handleAddField}
+                onDeleteTable={handleDeleteTable}
+                onDeleteField={handleDeleteField}
+                onFolderChange={(folderId) => {
+                  setSelectedNode({ type: "folder", id: folderId });
+                  setSelectedField(null);
+                }}
+                onTableChange={(shortCode) => {
+                  void navigate({
+                    to: "/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode",
+                    params: {
+                      teamShortCode,
+                      projectShortCode: projectShortCode ?? "",
+                      tableShortCode: shortCode,
+                    },
+                  });
+                }}
+                onFieldChange={(tableId, fieldId) => {
+                  setSelectedNode({ type: "field", tableId, fieldId });
+                  setSelectedField({ tableId, fieldId });
+                }}
+              />
+            )
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              请选择项目
+            </div>
+          )}
         </div>
         <ResizeDivider
           label="调整表格列表宽度"
           active={resizeState?.target === "tree"}
-          onPointerDown={startResize("tree", treePanelWidth, 300, 640)}
+          onPointerDown={startResize("tree", treePanelWidth, treePanelMinWidth, treePanelMaxWidth)}
         />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <DesignerHeader
+            projectId={activeProjectId}
+            tableId={table.id}
             path={tablePath}
             metadata={metadata}
             saveLabel={savedLabel}
             onSave={handleSave}
+            onVersionChange={(nextTableShortCode) => {
+              void navigate({
+                to: "/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode",
+                params: {
+                  teamShortCode,
+                  projectShortCode: projectShortCode ?? "",
+                  tableShortCode: nextTableShortCode,
+                },
+              });
+            }}
           />
           <div className="min-h-0 flex-1 overflow-auto px-4 pb-6">
             <DesignerTabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -202,11 +861,19 @@ export function SchemaStudioPage() {
               <div className="pt-4">
                 <TableMetadataForm metadata={metadata} onMetadataChange={updateMetadata} />
                 <FieldGrid
-                  fields={table.fields}
+                  fields={fields}
                   selectedFieldId={
                     selectedField?.tableId === table.id ? selectedField.fieldId : null
                   }
                   onFieldSelect={(fieldId) => setSelectedField({ tableId: table.id, fieldId })}
+                  onFieldsChange={handleFieldsChange}
+                  onFieldAdd={handleFieldAdd}
+                  onFieldDelete={handleFieldDelete}
+                  onFieldsReorder={handleFieldsReorder}
+                  canUndo={Boolean(fieldHistory[table.id]?.past.length)}
+                  canRedo={Boolean(fieldHistory[table.id]?.future.length)}
+                  onUndo={handleUndo}
+                  onRedo={handleRedo}
                 />
               </div>
             ) : (
@@ -260,4 +927,53 @@ function ResizeDivider({
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+let emptyTableIndex = 0;
+function createEmptyTable(): TableMetadata {
+  emptyTableIndex += 1;
+  return {
+    name: `NewTable${emptyTableIndex}`,
+    logicalName: "新表",
+    description: "",
+  };
+}
+
+let emptyFieldIndex = 0;
+function createEmptyField(): SchemaField {
+  emptyFieldIndex += 1;
+  return {
+    id: `new-${crypto.randomUUID()}`,
+    name: `NewField${emptyFieldIndex}`,
+    logicalName: "新字段",
+    dataType: "text",
+    length: 64,
+    primaryKey: false,
+    nullable: false,
+    autoIncrement: false,
+    index: false,
+    defaultValue: null,
+    description: "",
+  };
+}
+
+function buildFieldPatch(draft: SchemaField, original: SchemaField): Partial<SchemaField> {
+  const patch: Partial<SchemaField> = {};
+
+  if (draft.name !== original.name) patch.name = draft.name;
+  if (draft.logicalName !== original.logicalName) patch.logicalName = draft.logicalName;
+  if (draft.dataType !== original.dataType) patch.dataType = draft.dataType;
+  if (draft.length !== original.length) patch.length = draft.length;
+  if (draft.primaryKey !== original.primaryKey) patch.primaryKey = draft.primaryKey;
+  if (draft.nullable !== original.nullable) patch.nullable = draft.nullable;
+  if (draft.autoIncrement !== original.autoIncrement) patch.autoIncrement = draft.autoIncrement;
+  if (draft.index !== original.index) patch.index = draft.index;
+  if (draft.uniqueFlag !== original.uniqueFlag) patch.uniqueFlag = draft.uniqueFlag;
+  if (draft.defaultValue !== original.defaultValue) patch.defaultValue = draft.defaultValue;
+  if (draft.comment !== original.comment) patch.comment = draft.comment;
+  if (draft.description !== original.description) patch.description = draft.description;
+  if (draft.fkTableId !== original.fkTableId) patch.fkTableId = draft.fkTableId;
+  if (draft.fkColumnId !== original.fkColumnId) patch.fkColumnId = draft.fkColumnId;
+
+  return patch;
 }

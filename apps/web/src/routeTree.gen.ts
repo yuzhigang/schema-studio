@@ -12,10 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as GuestRouteRouteImport } from './routes/_guest/route'
 import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as GuestLoginRouteImport } from './routes/_guest/login'
-import { Route as AuthAppRouteRouteImport } from './routes/_auth/app/route'
-import { Route as AuthAppIndexRouteImport } from './routes/_auth/app/index'
+import { Route as AuthTeamIndexRouteImport } from './routes/_auth/team/index'
+import { Route as AuthTeamTeamShortCodeIndexRouteImport } from './routes/_auth/team.$teamShortCode/index'
+import { Route as AuthTeamTeamShortCodeProjectProjectShortCodeIndexRouteImport } from './routes/_auth/team.$teamShortCode/project.$projectShortCode/index'
+import { Route as AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRouteImport } from './routes/_auth/team.$teamShortCode/project.$projectShortCode/settings'
+import { Route as AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRouteImport } from './routes/_auth/team.$teamShortCode/project.$projectShortCode/table.$tableShortCode/index'
 
 const GuestRouteRoute = GuestRouteRouteImport.update({
   id: '/_guest',
@@ -30,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
@@ -40,54 +49,110 @@ const GuestLoginRoute = GuestLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => GuestRouteRoute,
 } as any)
-const AuthAppRouteRoute = AuthAppRouteRouteImport.update({
-  id: '/app',
-  path: '/app',
+const AuthTeamIndexRoute = AuthTeamIndexRouteImport.update({
+  id: '/team/',
+  path: '/team/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
-const AuthAppIndexRoute = AuthAppIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthAppRouteRoute,
-} as any)
+const AuthTeamTeamShortCodeIndexRoute =
+  AuthTeamTeamShortCodeIndexRouteImport.update({
+    id: '/team/$teamShortCode/',
+    path: '/team/$teamShortCode/',
+    getParentRoute: () => AuthRouteRoute,
+  } as any)
+const AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute =
+  AuthTeamTeamShortCodeProjectProjectShortCodeIndexRouteImport.update({
+    id: '/team/$teamShortCode/project/$projectShortCode/',
+    path: '/team/$teamShortCode/project/$projectShortCode/',
+    getParentRoute: () => AuthRouteRoute,
+  } as any)
+const AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute =
+  AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRouteImport.update({
+    id: '/team/$teamShortCode/project/$projectShortCode/settings',
+    path: '/team/$teamShortCode/project/$projectShortCode/settings',
+    getParentRoute: () => AuthRouteRoute,
+  } as any)
+const AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute =
+  AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRouteImport.update(
+    {
+      id: '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/',
+      path: '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/',
+      getParentRoute: () => AuthRouteRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/app': typeof AuthAppRouteRouteWithChildren
   '/login': typeof GuestLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/app/': typeof AuthAppIndexRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/team/': typeof AuthTeamIndexRoute
+  '/team/$teamShortCode/': typeof AuthTeamTeamShortCodeIndexRoute
+  '/team/$teamShortCode/project/$projectShortCode/settings': typeof AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute
+  '/team/$teamShortCode/project/$projectShortCode/': typeof AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute
+  '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/': typeof AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof GuestLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/app': typeof AuthAppIndexRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/team': typeof AuthTeamIndexRoute
+  '/team/$teamShortCode': typeof AuthTeamTeamShortCodeIndexRoute
+  '/team/$teamShortCode/project/$projectShortCode/settings': typeof AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute
+  '/team/$teamShortCode/project/$projectShortCode': typeof AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute
+  '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode': typeof AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteRouteWithChildren
   '/_guest': typeof GuestRouteRouteWithChildren
-  '/_auth/app': typeof AuthAppRouteRouteWithChildren
   '/_guest/login': typeof GuestLoginRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/_auth/app/': typeof AuthAppIndexRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/_auth/team/': typeof AuthTeamIndexRoute
+  '/_auth/team/$teamShortCode/': typeof AuthTeamTeamShortCodeIndexRoute
+  '/_auth/team/$teamShortCode/project/$projectShortCode/settings': typeof AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute
+  '/_auth/team/$teamShortCode/project/$projectShortCode/': typeof AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute
+  '/_auth/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/': typeof AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/login' | '/auth/callback' | '/app/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/auth/callback'
+    | '/invite/$token'
+    | '/team/'
+    | '/team/$teamShortCode/'
+    | '/team/$teamShortCode/project/$projectShortCode/settings'
+    | '/team/$teamShortCode/project/$projectShortCode/'
+    | '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/auth/callback' | '/app'
+  to:
+    | '/'
+    | '/login'
+    | '/auth/callback'
+    | '/invite/$token'
+    | '/team'
+    | '/team/$teamShortCode'
+    | '/team/$teamShortCode/project/$projectShortCode/settings'
+    | '/team/$teamShortCode/project/$projectShortCode'
+    | '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode'
   id:
     | '__root__'
     | '/'
     | '/_auth'
     | '/_guest'
-    | '/_auth/app'
     | '/_guest/login'
     | '/auth/callback'
-    | '/_auth/app/'
+    | '/invite/$token'
+    | '/_auth/team/'
+    | '/_auth/team/$teamShortCode/'
+    | '/_auth/team/$teamShortCode/project/$projectShortCode/settings'
+    | '/_auth/team/$teamShortCode/project/$projectShortCode/'
+    | '/_auth/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,6 +160,7 @@ export interface RootRouteChildren {
   AuthRouteRoute: typeof AuthRouteRouteWithChildren
   GuestRouteRoute: typeof GuestRouteRouteWithChildren
   AuthCallbackRoute: typeof AuthCallbackRoute
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -120,6 +186,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/callback': {
       id: '/auth/callback'
       path: '/auth/callback'
@@ -134,41 +207,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestLoginRouteImport
       parentRoute: typeof GuestRouteRoute
     }
-    '/_auth/app': {
-      id: '/_auth/app'
-      path: '/app'
-      fullPath: '/app'
-      preLoaderRoute: typeof AuthAppRouteRouteImport
+    '/_auth/team/': {
+      id: '/_auth/team/'
+      path: '/team'
+      fullPath: '/team/'
+      preLoaderRoute: typeof AuthTeamIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_auth/app/': {
-      id: '/_auth/app/'
-      path: '/'
-      fullPath: '/app/'
-      preLoaderRoute: typeof AuthAppIndexRouteImport
-      parentRoute: typeof AuthAppRouteRoute
+    '/_auth/team/$teamShortCode/': {
+      id: '/_auth/team/$teamShortCode/'
+      path: '/team/$teamShortCode'
+      fullPath: '/team/$teamShortCode/'
+      preLoaderRoute: typeof AuthTeamTeamShortCodeIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/team/$teamShortCode/project/$projectShortCode/': {
+      id: '/_auth/team/$teamShortCode/project/$projectShortCode/'
+      path: '/team/$teamShortCode/project/$projectShortCode'
+      fullPath: '/team/$teamShortCode/project/$projectShortCode/'
+      preLoaderRoute: typeof AuthTeamTeamShortCodeProjectProjectShortCodeIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/team/$teamShortCode/project/$projectShortCode/settings': {
+      id: '/_auth/team/$teamShortCode/project/$projectShortCode/settings'
+      path: '/team/$teamShortCode/project/$projectShortCode/settings'
+      fullPath: '/team/$teamShortCode/project/$projectShortCode/settings'
+      preLoaderRoute: typeof AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/': {
+      id: '/_auth/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/'
+      path: '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode'
+      fullPath: '/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode/'
+      preLoaderRoute: typeof AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
     }
   }
 }
 
-interface AuthAppRouteRouteChildren {
-  AuthAppIndexRoute: typeof AuthAppIndexRoute
-}
-
-const AuthAppRouteRouteChildren: AuthAppRouteRouteChildren = {
-  AuthAppIndexRoute: AuthAppIndexRoute,
-}
-
-const AuthAppRouteRouteWithChildren = AuthAppRouteRoute._addFileChildren(
-  AuthAppRouteRouteChildren,
-)
-
 interface AuthRouteRouteChildren {
-  AuthAppRouteRoute: typeof AuthAppRouteRouteWithChildren
+  AuthTeamIndexRoute: typeof AuthTeamIndexRoute
+  AuthTeamTeamShortCodeIndexRoute: typeof AuthTeamTeamShortCodeIndexRoute
+  AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute: typeof AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute
+  AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute: typeof AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute
+  AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute: typeof AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
-  AuthAppRouteRoute: AuthAppRouteRouteWithChildren,
+  AuthTeamIndexRoute: AuthTeamIndexRoute,
+  AuthTeamTeamShortCodeIndexRoute: AuthTeamTeamShortCodeIndexRoute,
+  AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute:
+    AuthTeamTeamShortCodeProjectProjectShortCodeSettingsRoute,
+  AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute:
+    AuthTeamTeamShortCodeProjectProjectShortCodeIndexRoute,
+  AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute:
+    AuthTeamTeamShortCodeProjectProjectShortCodeTableTableShortCodeIndexRoute,
 }
 
 const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
@@ -192,6 +285,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRouteRoute: AuthRouteRouteWithChildren,
   GuestRouteRoute: GuestRouteRouteWithChildren,
   AuthCallbackRoute: AuthCallbackRoute,
+  InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

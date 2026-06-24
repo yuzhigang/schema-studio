@@ -1,4 +1,4 @@
-import { SiGithub } from "@icons-pack/react-simple-icons";
+import { SiGithub, SiGoogle } from "@icons-pack/react-simple-icons";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DatabaseZapIcon } from "lucide-react";
 
@@ -30,9 +30,9 @@ function LoginPage() {
           icon={<SiGithub className="size-4" />}
         />
         <SignInSocialButton
-          provider="azure"
+          provider="google"
           callbackURL={redirectUrl}
-          icon={<span className="size-4 text-sm font-bold">M</span>}
+          icon={<SiGoogle className="size-4" />}
         />
       </div>
     </div>

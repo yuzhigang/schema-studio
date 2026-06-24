@@ -7,7 +7,8 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@repo/db": "workspace:*"
+    "@repo/db": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@repo/tsconfig": "workspace:*",

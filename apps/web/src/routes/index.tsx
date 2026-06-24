@@ -22,7 +22,7 @@ function HomePage() {
               <DatabaseZapIcon className="size-5" />
               <span>Schema Studio</span>
             </Link>
-            <Button render={<Link to="/app" />} nativeButton={false} size="sm">
+            <Button render={<Link to="/team" />} nativeButton={false} size="sm">
               Open Studio
               <ArrowRightIcon className="size-4" />
             </Button>
@@ -39,7 +39,7 @@ function HomePage() {
                 the product is still changing.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Button render={<Link to="/app" />} nativeButton={false}>
+                <Button render={<Link to="/team" />} nativeButton={false}>
                   Go to workspace
                   <ArrowRightIcon className="size-4" />
                 </Button>

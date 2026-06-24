@@ -1,9 +1,8 @@
+import { $signOut } from "@repo/auth/tanstack/functions";
 import { authQueryOptions } from "@repo/auth/tanstack/queries";
 import { Button } from "@repo/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-
-import { supabaseBrowser } from "#/lib/supabase";
 
 export function SignOutButton() {
   const queryClient = useQueryClient();
@@ -12,7 +11,7 @@ export function SignOutButton() {
   return (
     <Button
       onClick={async () => {
-        await supabaseBrowser.auth.signOut();
+        await $signOut();
         queryClient.setQueryData(authQueryOptions().queryKey, null);
         await router.invalidate();
       }}

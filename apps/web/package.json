@@ -24,7 +24,8 @@
     "@tanstack/react-start": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",

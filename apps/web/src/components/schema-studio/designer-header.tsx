@@ -1,9 +1,32 @@
 import { Button } from "@repo/ui/components/button";
-import { ChevronRightIcon, HistoryIcon, SaveIcon, Table2Icon, UploadIcon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@repo/ui/components/select";
+import {
+  ChevronRightIcon,
+  CopyIcon,
+  HistoryIcon,
+  RefreshCwIcon,
+  SaveIcon,
+  Table2Icon,
+  UploadIcon,
+} from "lucide-react";
 
-import type { SchemaTable, TableMetadata } from "./mock-data";
+import {
+  useCreateTableVersion,
+  useSetSelectedTableVersion,
+  useSyncTableFromRef,
+  useTableVersions,
+} from "./schema-queries";
+import type { SchemaTable, TableMetadata } from "./schema-types";
 
 type DesignerHeaderProps = {
+  projectId: string;
+  tableId: string;
   path: {
     projectName: string;
     folderName: string;
@@ -12,9 +35,58 @@ type DesignerHeaderProps = {
   metadata: TableMetadata;
   saveLabel: string;
   onSave: () => void;
+  onVersionChange?: (tableShortCode: string) => void;
 };
 
-export function DesignerHeader({ path, metadata, saveLabel, onSave }: DesignerHeaderProps) {
+export function DesignerHeader({
+  projectId,
+  tableId,
+  path,
+  metadata,
+  saveLabel,
+  onSave,
+  onVersionChange,
+}: DesignerHeaderProps) {
+  const { data: versions = [] } = useTableVersions(tableId, projectId);
+  const createVersion = useCreateTableVersion();
+  const setSelectedVersion = useSetSelectedTableVersion();
+  const syncFromRef = useSyncTableFromRef();
+
+  const canEdit = Boolean(projectId && tableId);
+  const currentVersion = versions.find((v) => v.id === tableId)?.version ?? path.table.version;
+  const currentShortCode = versions.find((v) => v.id === tableId)?.shortCode ?? "";
+  const hasRef = Boolean(path.table.refTableId);
+
+  function handleCreateVersion() {
+    if (!canEdit) return;
+    createVersion.mutate(
+      { projectId, tableId },
+      {
+        onSuccess: (result) => {
+          onVersionChange?.(result.shortCode);
+        },
+      },
+    );
+  }
+
+  function handleSelectVersion(shortCode: string) {
+    const version = versions.find((v) => v.shortCode === shortCode);
+    if (!canEdit || !version || version.id === tableId) return;
+    setSelectedVersion.mutate(
+      { projectId, tableId: version.id },
+      {
+        onSuccess: () => {
+          onVersionChange?.(version.shortCode);
+        },
+      },
+    );
+  }
+
+  function handleSync() {
+    if (!canEdit || !hasRef) return;
+    syncFromRef.mutate({ projectId, tableId });
+  }
+
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="px-4 py-4">
@@ -42,14 +114,49 @@ export function DesignerHeader({ path, metadata, saveLabel, onSave }: DesignerHe
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-md border-slate-200 bg-white shadow-none"
-            >
-              <HistoryIcon data-icon="inline-start" className="size-4" />
-              版本历史
-            </Button>
+            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1">
+              <HistoryIcon className="size-4 text-slate-500" />
+              <span className="text-sm text-slate-600">版本 {currentVersion}</span>
+              <Select
+                value={currentShortCode}
+                onValueChange={(value) => handleSelectVersion(value ?? "")}
+                disabled={versions.length <= 1}
+              >
+                <SelectTrigger className="h-7 w-[140px] border-slate-200 text-sm">
+                  <SelectValue placeholder="切换版本" />
+                </SelectTrigger>
+                <SelectContent>
+                  {versions.map((version) => (
+                    <SelectItem key={version.id} value={version.shortCode}>
+                      版本 {version.version}
+                      {version.versionSelected ? "（当前）" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                title="新建版本"
+                disabled={!canEdit}
+                onClick={handleCreateVersion}
+              >
+                <CopyIcon className="size-4" />
+              </Button>
+              {hasRef && (
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="ghost"
+                  title="同步来源表元数据"
+                  disabled={!canEdit}
+                  onClick={handleSync}
+                >
+                  <RefreshCwIcon className="size-4" />
+                </Button>
+              )}
+            </div>
             <Button
               type="button"
               variant="outline"

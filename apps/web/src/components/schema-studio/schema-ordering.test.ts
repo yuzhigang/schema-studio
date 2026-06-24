@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { SchemaField, SchemaFolder } from "./mock-data";
 import { moveFieldInTable, moveFolder, moveTableInFolder } from "./schema-ordering";
+import type { SchemaField, SchemaFolder } from "./schema-types";
 
 const folders: SchemaFolder[] = [
   {
@@ -11,16 +11,22 @@ const folders: SchemaFolder[] = [
     tables: [
       {
         id: "event",
+        shortCode: "event",
         name: "Event",
         logicalName: "Event",
         description: "",
+        version: 1,
+        versionSelected: true,
         fields: [createField("id", "ID"), createField("code", "Code"), createField("name", "Name")],
       },
       {
         id: "stage",
+        shortCode: "stage",
         name: "Stage",
         logicalName: "Stage",
         description: "",
+        version: 1,
+        versionSelected: true,
         fields: [createField("stage-id", "ID")],
       },
     ],
@@ -32,9 +38,12 @@ const folders: SchemaFolder[] = [
     tables: [
       {
         id: "sample",
+        shortCode: "sample",
         name: "Sample",
         logicalName: "Sample",
         description: "",
+        version: 1,
+        versionSelected: true,
         fields: [createField("sample-id", "ID")],
       },
     ],
@@ -77,9 +86,9 @@ function createField(id: string, logicalName: string): SchemaField {
     dataType: "text",
     length: 64,
     primaryKey: false,
-    notNull: false,
+    nullable: false,
     autoIncrement: false,
-    updated: true,
+    index: false,
     description: "",
   };
 }
