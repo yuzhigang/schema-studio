@@ -18,28 +18,32 @@ import { useEffect, useMemo, useState, type PointerEvent } from "react";
 import { DesignerHeader } from "./designer-header";
 import { DesignerTabs, type DesignerTabId } from "./designer-tabs";
 import { FieldGrid } from "./field-grid";
+import { insertFieldAfter } from "./field-grid-data";
 import { ProjectSidebar } from "./project-sidebar";
-import { moveFieldInTable, moveFolder, moveTableInFolder } from "./schema-ordering";
+import { moveFolder, moveTableInFolder } from "./schema-ordering";
 import {
+  useCreateCategory,
   useCreateColumn,
   useCreateTable,
   useDeleteCategory,
   useDeleteColumn,
   useDeleteTable,
   useImportProject,
-  useMoveColumnToTable,
   useMoveTableToFolder,
   useProjectTree,
   useReorderCategories,
   useReorderColumns,
   useReorderTables,
+  useSaveTableAsVersion,
   useTeamProjects,
   useUpdateColumn,
   useUpdateTable,
 } from "./schema-queries";
 import { SchemaTree } from "./schema-tree";
+import { applyFieldDraftsToFolders, removeFieldDrafts } from "./schema-tree-data";
 import type { SchemaField, TableMetadata } from "./schema-types";
 import { findFirstTable, findTableByShortCode, getTablePath } from "./schema-types";
+import { toSaveTableVersionFields } from "./schema-version-data";
 import { TableMetadataForm } from "./table-metadata-form";
 import { useProjectPanelWidth, useTreePanelWidth } from "./use-panel-width";
 import { WorkspaceRail } from "./workspace-rail";
@@ -123,7 +127,6 @@ export function SchemaStudioPage({
   ]);
 
   const [activeTab, setActiveTab] = useState<DesignerTabId>("design");
-  const [savedLabel, setSavedLabel] = useState("保存");
   const {
     width: projectPanelWidth,
     setWidth: setProjectPanelWidth,
@@ -156,7 +159,9 @@ export function SchemaStudioPage({
     onConfirm: () => {},
   });
 
-  const isMutating = useIsMutating();
+  const isMutating = useIsMutating({
+    predicate: (mutation) => mutation.meta?.background !== true,
+  });
 
   const table = useMemo(() => {
     return (
@@ -198,18 +203,10 @@ export function SchemaStudioPage({
     () => fieldDrafts[table.id] ?? table.fields,
     [fieldDrafts, table.id, table.fields],
   );
-
-  useEffect(() => {
-    if (!table.id || fieldDrafts[table.id]) {
-      return;
-    }
-
-    // eslint-disable-next-line react-hooks-js/set-state-in-effect
-    setFieldDrafts((current) => ({
-      ...current,
-      [table.id]: table.fields,
-    }));
-  }, [table.id, table.fields, fieldDrafts]);
+  const treeFolders = useMemo(
+    () => applyFieldDraftsToFolders(folders, fieldDrafts),
+    [folders, fieldDrafts],
+  );
 
   useEffect(() => {
     if (!table.id || tableDrafts[table.id]) {
@@ -229,6 +226,7 @@ export function SchemaStudioPage({
 
   const updateColumn = useUpdateColumn();
   const updateTable = useUpdateTable();
+  const createCategory = useCreateCategory();
   const createTable = useCreateTable();
   const createColumn = useCreateColumn();
   const deleteCategory = useDeleteCategory();
@@ -238,7 +236,7 @@ export function SchemaStudioPage({
   const reorderTables = useReorderTables();
   const reorderColumns = useReorderColumns();
   const moveTableToFolderMutation = useMoveTableToFolder();
-  const moveColumnToTableMutation = useMoveColumnToTable();
+  const saveTableAsVersion = useSaveTableAsVersion();
   const importProject = useImportProject();
 
   function updateMetadata(nextMetadata: TableMetadata) {
@@ -322,11 +320,7 @@ export function SchemaStudioPage({
   }
 
   function clearFieldDrafts() {
-    setFieldDrafts((current) => {
-      const next = { ...current };
-      delete next[table.id];
-      return next;
-    });
+    setFieldDrafts((current) => removeFieldDrafts(current, table.id));
     setFieldHistory((current) => {
       const next = { ...current };
       delete next[table.id];
@@ -334,12 +328,12 @@ export function SchemaStudioPage({
     });
   }
 
-  function handleFieldAdd() {
+  function handleFieldAdd(afterFieldId: string) {
     if (!table.id) {
       return;
     }
 
-    handleFieldsChange([...fields, createEmptyField()]);
+    handleFieldsChange(insertFieldAfter(fields, createEmptyField(), afterFieldId));
   }
 
   function handleFieldDelete(fieldId: string) {
@@ -450,25 +444,59 @@ export function SchemaStudioPage({
         });
       }
 
-      queryClient.invalidateQueries({
-        queryKey: ["schema-studio", "project-tree", activeProjectId],
+      await updateTable.mutateAsync({
+        projectId: activeProjectId,
+        tableId: table.id,
+        metadata,
       });
+
       clearFieldDrafts();
 
-      updateTable.mutate(
-        { projectId: activeProjectId, tableId: table.id, metadata },
-        {
-          onSuccess: () => {
-            setSavedLabel("已保存");
-            window.setTimeout(() => setSavedLabel("保存"), 1200);
-          },
-        },
-      );
+      void queryClient.invalidateQueries({
+        queryKey: ["schema-studio", "project-tree", activeProjectId],
+      });
     } catch (error) {
       console.error("Save failed:", error);
       setAlert({
         open: true,
         title: "保存失败",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async function handleSaveAsVersion() {
+    if (!activeProjectId || !table.id) {
+      return;
+    }
+
+    try {
+      const result = await saveTableAsVersion.mutateAsync({
+        projectId: activeProjectId,
+        tableId: table.id,
+        metadata,
+        fields: toSaveTableVersionFields(fields),
+      });
+
+      clearTableState(table.id);
+
+      await queryClient.invalidateQueries({
+        queryKey: ["schema-studio", "project-tree", activeProjectId],
+      });
+
+      void navigate({
+        to: "/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode",
+        params: {
+          teamShortCode,
+          projectShortCode: projectShortCode ?? "",
+          tableShortCode: result.shortCode,
+        },
+      });
+    } catch (error) {
+      console.error("Save as version failed:", error);
+      setAlert({
+        open: true,
+        title: "保存新版本失败",
         message: error instanceof Error ? error.message : String(error),
       });
     }
@@ -576,27 +604,6 @@ export function SchemaStudioPage({
     });
   }
 
-  function handleFieldMove(tableId: string, activeId: string, overId: string) {
-    if (!activeProjectId) {
-      return;
-    }
-
-    const nextFolders = moveFieldInTable(folders, tableId, activeId, overId);
-    const folder = nextFolders.find((item) =>
-      item.tables.some((tableItem) => tableItem.id === tableId),
-    );
-    const tableItem = folder?.tables.find((item) => item.id === tableId);
-    if (!tableItem) {
-      return;
-    }
-
-    reorderColumns.mutate({
-      projectId: activeProjectId,
-      tableId,
-      orderedColumnIds: tableItem.fields.map((field) => field.id),
-    });
-  }
-
   function handleTableMoveToFolder(tableId: string, folderId: string) {
     if (!activeProjectId) {
       return;
@@ -609,16 +616,56 @@ export function SchemaStudioPage({
     });
   }
 
-  function handleFieldMoveToTable(fieldId: string, sourceTableId: string, targetTableId: string) {
+  function refreshTree() {
     if (!activeProjectId) {
       return;
     }
 
-    moveColumnToTableMutation.mutate({
-      projectId: activeProjectId,
-      columnId: fieldId,
-      targetTableId,
+    setFieldDrafts((current) => removeFieldDrafts(current));
+    setFieldHistory({});
+
+    void queryClient.invalidateQueries({
+      queryKey: ["schema-studio", "project-tree", activeProjectId],
     });
+  }
+
+  function clearTableState(tableId: string) {
+    setFieldDrafts((current) => removeFieldDrafts(current, tableId));
+    setFieldHistory((current) => {
+      if (!(tableId in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[tableId];
+      return next;
+    });
+    setTableDrafts((current) => {
+      if (!(tableId in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[tableId];
+      return next;
+    });
+  }
+
+  function leaveDeletedTable() {
+    if (!projectShortCode) {
+      return;
+    }
+
+    void navigate({
+      to: "/team/$teamShortCode/project/$projectShortCode",
+      params: { teamShortCode, projectShortCode },
+    });
+  }
+
+  function handleAddGroup() {
+    if (!activeProjectId) {
+      return;
+    }
+
+    createCategory.mutate({ projectId: activeProjectId, name: "新分组" });
   }
 
   function handleAddTable(folderId: string) {
@@ -639,7 +686,15 @@ export function SchemaStudioPage({
       title: "删除分组",
       message: "确定删除该分组及其下所有表吗？",
       onConfirm: () => {
+        const folder = folders.find((item) => item.id === folderId);
+        const tableIds = folder?.tables.map((tableItem) => tableItem.id) ?? [];
+        const removingActiveTable = tableIds.includes(activeTableId);
+
         deleteCategory.mutate({ projectId: activeProjectId, categoryId: folderId });
+        tableIds.forEach(clearTableState);
+        if (removingActiveTable) {
+          leaveDeletedTable();
+        }
         setConfirm((current) => ({ ...current, open: false }));
       },
     });
@@ -664,6 +719,10 @@ export function SchemaStudioPage({
       message: "确定删除该表及其下所有字段吗？",
       onConfirm: () => {
         deleteTable.mutate({ projectId: activeProjectId, tableId });
+        clearTableState(tableId);
+        if (tableId === activeTableId) {
+          leaveDeletedTable();
+        }
         setConfirm((current) => ({ ...current, open: false }));
       },
     });
@@ -680,6 +739,7 @@ export function SchemaStudioPage({
       message: "确定删除该字段吗？",
       onConfirm: () => {
         deleteColumn.mutate({ projectId: activeProjectId, columnId: fieldId });
+        clearTableState(tableId);
         setConfirm((current) => ({ ...current, open: false }));
       },
     });
@@ -786,20 +846,17 @@ export function SchemaStudioPage({
                 <p>加载树失败</p>
                 <p className="mt-1 text-xs text-slate-500">{treeError.message}</p>
               </div>
-            ) : folders.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                暂无分组
-              </div>
             ) : (
               <SchemaTree
-                folders={folders}
+                key={activeProjectId}
+                folders={treeFolders}
                 selectedNode={selectedNode}
                 activeTableShortCode={tableShortCode}
                 onFolderMove={handleFolderMove}
                 onTableMove={handleTableMove}
-                onFieldMove={handleFieldMove}
                 onTableMoveToFolder={handleTableMoveToFolder}
-                onFieldMoveToTable={handleFieldMoveToTable}
+                onAddGroup={handleAddGroup}
+                onRefresh={refreshTree}
                 onAddTable={handleAddTable}
                 onDeleteFolder={handleDeleteFolder}
                 onAddField={handleAddField}
@@ -837,51 +894,59 @@ export function SchemaStudioPage({
           onPointerDown={startResize("tree", treePanelWidth, treePanelMinWidth, treePanelMaxWidth)}
         />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <DesignerHeader
-            projectId={activeProjectId}
-            tableId={table.id}
-            path={tablePath}
-            metadata={metadata}
-            saveLabel={savedLabel}
-            onSave={handleSave}
-            onVersionChange={(nextTableShortCode) => {
-              void navigate({
-                to: "/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode",
-                params: {
-                  teamShortCode,
-                  projectShortCode: projectShortCode ?? "",
-                  tableShortCode: nextTableShortCode,
-                },
-              });
-            }}
-          />
-          <div className="min-h-0 flex-1 overflow-auto px-4 pb-6">
-            <DesignerTabs activeTab={activeTab} onTabChange={setActiveTab} />
-            {activeTab === "design" ? (
-              <div className="pt-4">
-                <TableMetadataForm metadata={metadata} onMetadataChange={updateMetadata} />
-                <FieldGrid
-                  fields={fields}
-                  selectedFieldId={
-                    selectedField?.tableId === table.id ? selectedField.fieldId : null
-                  }
-                  onFieldSelect={(fieldId) => setSelectedField({ tableId: table.id, fieldId })}
-                  onFieldsChange={handleFieldsChange}
-                  onFieldAdd={handleFieldAdd}
-                  onFieldDelete={handleFieldDelete}
-                  onFieldsReorder={handleFieldsReorder}
-                  canUndo={Boolean(fieldHistory[table.id]?.past.length)}
-                  canRedo={Boolean(fieldHistory[table.id]?.future.length)}
-                  onUndo={handleUndo}
-                  onRedo={handleRedo}
-                />
+          {table.id ? (
+            <>
+              <DesignerHeader
+                projectId={activeProjectId}
+                tableId={table.id}
+                path={tablePath}
+                metadata={metadata}
+                onSave={handleSave}
+                onSaveAsVersion={handleSaveAsVersion}
+                onVersionChange={(nextTableShortCode) => {
+                  void navigate({
+                    to: "/team/$teamShortCode/project/$projectShortCode/table/$tableShortCode",
+                    params: {
+                      teamShortCode,
+                      projectShortCode: projectShortCode ?? "",
+                      tableShortCode: nextTableShortCode,
+                    },
+                  });
+                }}
+              />
+              <div className="min-h-0 flex-1 overflow-auto px-4 pb-6">
+                <DesignerTabs activeTab={activeTab} onTabChange={setActiveTab} />
+                {activeTab === "design" ? (
+                  <div className="pt-4">
+                    <TableMetadataForm metadata={metadata} onMetadataChange={updateMetadata} />
+                    <FieldGrid
+                      fields={fields}
+                      selectedFieldId={
+                        selectedField?.tableId === table.id ? selectedField.fieldId : null
+                      }
+                      onFieldSelect={(fieldId) => setSelectedField({ tableId: table.id, fieldId })}
+                      onFieldsChange={handleFieldsChange}
+                      onFieldAdd={handleFieldAdd}
+                      onFieldDelete={handleFieldDelete}
+                      onFieldsReorder={handleFieldsReorder}
+                      canUndo={Boolean(fieldHistory[table.id]?.past.length)}
+                      canRedo={Boolean(fieldHistory[table.id]?.future.length)}
+                      onUndo={handleUndo}
+                      onRedo={handleRedo}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                    当前原型仅实现表设计主流程，后续版本会补充此模块。
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="mt-4 rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
-                当前原型仅实现表设计主流程，后续版本会补充此模块。
-              </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              暂无数据
+            </div>
+          )}
         </main>
       </div>
     </div>

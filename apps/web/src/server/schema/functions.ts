@@ -12,6 +12,8 @@ import {
   nextColumnSortOrder,
   nextSortOrder,
   rebuildNodeSubtree,
+  reorderColumnSortOrders,
+  reorderSiblingsBatched,
   resolveProjectId,
   resolveTeamShortCode,
   ROLE_RANK,
@@ -276,6 +278,13 @@ export const $fetchProjectTree = createServerFn({ method: "POST" })
 
         const columnRow = columnMap.get(node.entity_id);
         if (!columnRow) {
+          continue;
+        }
+
+        // Only attach columns that belong to the table node's currently selected
+        // version. A stale column tree_node left over from a previous version
+        // would otherwise leak that version's fields in, doubling the field list.
+        if (columnRow.table_id !== parentNode.entity_id) {
           continue;
         }
 
@@ -681,19 +690,12 @@ export const $reorderCategories = createServerFn({ method: "POST" })
     await assertProjectAccess(user.id, data.projectId, "editor");
 
     const service = getServiceClient();
-    for (let index = 0; index < data.orderedCategoryIds.length; index++) {
-      const categoryId = data.orderedCategoryIds[index];
-      const node = await findTreeNode(service, data.projectId, "category", categoryId);
-      if (!node) {
-        continue;
-      }
-
-      await rebuildNodeSubtree(service, data.projectId, node.id, {
-        parentPath: null,
-        parentLevel: -1,
-        sortOrder: index + 1,
-      });
-    }
+    await reorderSiblingsBatched(service, data.projectId, {
+      entityType: "category",
+      orderedEntityIds: data.orderedCategoryIds,
+      parentPath: null,
+      parentLevel: -1,
+    });
   });
 
 const reorderTablesSchema = z.object({
@@ -714,19 +716,12 @@ export const $reorderTables = createServerFn({ method: "POST" })
       return;
     }
 
-    for (let index = 0; index < data.orderedTableIds.length; index++) {
-      const tableId = data.orderedTableIds[index];
-      const node = await findTreeNode(service, data.projectId, "table", tableId);
-      if (!node) {
-        continue;
-      }
-
-      await rebuildNodeSubtree(service, data.projectId, node.id, {
-        parentPath: folderNode.path_code,
-        parentLevel: folderNode.level,
-        sortOrder: index + 1,
-      });
-    }
+    await reorderSiblingsBatched(service, data.projectId, {
+      entityType: "table",
+      orderedEntityIds: data.orderedTableIds,
+      parentPath: folderNode.path_code,
+      parentLevel: folderNode.level,
+    });
   });
 
 const reorderColumnsSchema = z.object({
@@ -747,30 +742,13 @@ export const $reorderColumns = createServerFn({ method: "POST" })
       return;
     }
 
-    for (let index = 0; index < data.orderedColumnIds.length; index++) {
-      const columnId = data.orderedColumnIds[index];
-      const sortOrder = index + 1;
-
-      const { error: columnError } = await service
-        .from("schema_column")
-        .update({ sort_order: sortOrder })
-        .eq("id", columnId);
-
-      if (columnError) {
-        throw columnError;
-      }
-
-      const node = await findTreeNode(service, data.projectId, "column", columnId);
-      if (!node) {
-        continue;
-      }
-
-      await rebuildNodeSubtree(service, data.projectId, node.id, {
-        parentPath: tableNode.path_code,
-        parentLevel: tableNode.level,
-        sortOrder,
-      });
-    }
+    await reorderColumnSortOrders(service, data.orderedColumnIds);
+    await reorderSiblingsBatched(service, data.projectId, {
+      entityType: "column",
+      orderedEntityIds: data.orderedColumnIds,
+      parentPath: tableNode.path_code,
+      parentLevel: tableNode.level,
+    });
   });
 
 const moveTableToFolderSchema = z.object({
@@ -914,6 +892,33 @@ export const $createProject = createServerFn({ method: "POST" })
       throw memberError;
     }
 
+    // Seed a default category so a freshly created project opens with a usable
+    // tree node instead of an empty "暂无分组" state.
+    const { data: category, error: categoryError } = await service
+      .from("category")
+      .insert({ project_id: project.id, name: "默认分组" })
+      .select("id")
+      .single();
+
+    if (categoryError || !category) {
+      throw categoryError ?? new Error("create default category failed");
+    }
+
+    const sortOrder = await nextSortOrder(service, project.id, null);
+    const { error: nodeError } = await service.from("tree_node").insert({
+      project_id: project.id,
+      entity_type: "category",
+      entity_id: category.id,
+      parent_id: null,
+      sort_order: sortOrder,
+      path_code: buildPathCode(null, sortOrder),
+      level: 0,
+    });
+
+    if (nodeError) {
+      throw nodeError;
+    }
+
     return { id: project.id, shortCode: project.short_code ?? project.id };
   });
 
@@ -1033,6 +1038,21 @@ export const $removeProjectMember = createServerFn({ method: "POST" })
     }
   });
 
+// Heal legacy/imported rows whose version_group_id was never set. The root row
+// of a group is the table whose id equals the group id; older imports left this
+// column NULL (it has no DB default), so it would be excluded from its own group
+// queries (.eq version_group_id). Idempotent: only touches the still-NULL root.
+async function ensureVersionGroupRoot(
+  service: ReturnType<typeof getServiceClient>,
+  versionGroupId: string,
+) {
+  await service
+    .from("schema_table")
+    .update({ version_group_id: versionGroupId })
+    .eq("id", versionGroupId)
+    .is("version_group_id", null);
+}
+
 async function rebuildTableColumnTreeNodes(
   service: ReturnType<typeof getServiceClient>,
   projectId: string,
@@ -1100,6 +1120,28 @@ async function rebuildTableColumnTreeNodes(
 const tableIdSchema = z.object({
   projectId: z.uuid(),
   tableId: z.uuid(),
+});
+
+const saveTableVersionFieldSchema = z.object({
+  name: z.string().min(1),
+  logicalName: z.string(),
+  dataType: z.string(),
+  length: z.number(),
+  primaryKey: z.boolean(),
+  nullable: z.boolean(),
+  autoIncrement: z.boolean(),
+  index: z.boolean(),
+  uniqueFlag: z.boolean().optional(),
+  defaultValue: z.string().nullable().optional(),
+  comment: z.string().nullable().optional(),
+  description: z.string(),
+  fkTableId: z.uuid().nullable().optional(),
+  fkColumnId: z.uuid().nullable().optional(),
+});
+
+const saveTableAsVersionSchema = tableIdSchema.extend({
+  metadata: tableMetadataSchema,
+  fields: z.array(saveTableVersionFieldSchema),
 });
 
 export const $createTableVersion = createServerFn({ method: "POST" })
@@ -1238,6 +1280,135 @@ export const $createTableVersion = createServerFn({ method: "POST" })
     };
   });
 
+export const $saveTableAsVersion = createServerFn({ method: "POST" })
+  .inputValidator(saveTableAsVersionSchema)
+  .handler(async ({ data }) => {
+    const user = await getAuthenticatedUser();
+    await assertProjectAccess(user.id, data.projectId, "editor");
+
+    const service = getServiceClient();
+
+    const { data: currentTable, error: tableError } = await service
+      .from("schema_table")
+      .select("*")
+      .eq("id", data.tableId)
+      .eq("project_id", data.projectId)
+      .is("deleted_at", null)
+      .single();
+
+    if (tableError || !currentTable) {
+      throw tableError ?? new Error("table not found");
+    }
+
+    const versionGroupId = currentTable.version_group_id ?? currentTable.id;
+
+    const { data: maxVersionRow } = await service
+      .from("schema_table")
+      .select("version")
+      .eq("version_group_id", versionGroupId)
+      .is("deleted_at", null)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextVersion = (maxVersionRow?.version ?? 1) + 1;
+    const newTableId = newId();
+    const now = new Date().toISOString();
+
+    const { error: deselectError } = await service
+      .from("schema_table")
+      .update({ version_selected: false })
+      .eq("version_group_id", versionGroupId)
+      .is("deleted_at", null);
+
+    if (deselectError) {
+      throw deselectError;
+    }
+
+    const { error: insertError } = await service.from("schema_table").insert({
+      id: newTableId,
+      project_id: data.projectId,
+      name: data.metadata.name,
+      logical_name: data.metadata.logicalName,
+      description: data.metadata.description,
+      version: nextVersion,
+      version_selected: true,
+      version_group_id: versionGroupId,
+      ref_table_id: currentTable.ref_table_id,
+      created_at: now,
+      updated_at: now,
+    });
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    if (data.fields.length > 0) {
+      const { error: columnError } = await service.from("schema_column").insert(
+        data.fields.map((field, index) => ({
+          id: newId(),
+          project_id: data.projectId,
+          table_id: newTableId,
+          name: field.name,
+          logical_name: field.logicalName,
+          data_type: field.dataType,
+          length: field.length,
+          primary_key: field.primaryKey,
+          not_null: !field.nullable,
+          auto_increment: field.autoIncrement,
+          index: field.index,
+          unique_flag: field.uniqueFlag ?? false,
+          default_value: field.defaultValue ?? null,
+          comment: field.comment ?? null,
+          description: field.description,
+          fk_table_id: field.fkTableId ?? null,
+          fk_column_id: field.fkColumnId ?? null,
+          sort_order: index + 1,
+          created_at: now,
+          updated_at: now,
+        })),
+      );
+
+      if (columnError) {
+        throw columnError;
+      }
+    }
+
+    const { data: tableNode } = await service
+      .from("tree_node")
+      .select("id")
+      .eq("project_id", data.projectId)
+      .eq("entity_type", "table")
+      .eq("entity_id", data.tableId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (tableNode) {
+      const { error: nodeError } = await service
+        .from("tree_node")
+        .update({ entity_id: newTableId })
+        .eq("id", tableNode.id);
+
+      if (nodeError) {
+        throw nodeError;
+      }
+
+      await rebuildTableColumnTreeNodes(service, data.projectId, tableNode.id, newTableId);
+    }
+
+    const { data: newTable } = await service
+      .from("schema_table")
+      .select("short_code")
+      .eq("id", newTableId)
+      .single();
+
+    return {
+      tableId: newTableId,
+      shortCode: newTable?.short_code ?? newTableId,
+      version: nextVersion,
+    };
+  });
+
 export const $setSelectedTableVersion = createServerFn({ method: "POST" })
   .inputValidator(tableIdSchema)
   .handler(async ({ data }) => {
@@ -1260,18 +1431,30 @@ export const $setSelectedTableVersion = createServerFn({ method: "POST" })
 
     const versionGroupId = targetTable.version_group_id ?? data.tableId;
 
+    // Heal a NULL root so its version_group_id is set going forward.
+    await ensureVersionGroupRoot(service, versionGroupId);
+
+    // Group membership must tolerate a legacy root whose version_group_id is
+    // still NULL (e.g. the heal above was blocked by the unique selected-version
+    // index when older data had two rows selected). Matching the root id too
+    // guarantees the original version is part of the group, otherwise the tree
+    // node below — which still points at that original — is never found and the
+    // selected version never actually switches in the tree.
     const { data: groupRows } = await service
       .from("schema_table")
       .select("id")
-      .eq("version_group_id", versionGroupId)
+      .or(`version_group_id.eq.${versionGroupId},id.eq.${versionGroupId}`)
+      .eq("project_id", data.projectId)
       .is("deleted_at", null);
 
     const groupIds = (groupRows ?? []).map((row) => row.id);
 
+    // Deselect by explicit id list (not by version_group_id, which would miss a
+    // still-NULL root) so exactly one version ends up selected.
     const { error: deselectError } = await service
       .from("schema_table")
       .update({ version_selected: false })
-      .eq("version_group_id", versionGroupId)
+      .in("id", groupIds)
       .is("deleted_at", null);
 
     if (deselectError) {
@@ -1332,12 +1515,17 @@ export const $listTableVersions = createServerFn({ method: "POST" })
 
     const versionGroupId = currentTable.version_group_id ?? data.tableId;
 
+    // Repair the original imported row (version_group_id left NULL) so it is
+    // included in its own group below — otherwise historical versions vanish.
+    await ensureVersionGroupRoot(service, versionGroupId);
+
     const { data: versions, error: versionsError } = await service
       .from("schema_table")
       .select(
         "id, name, logical_name, description, version, version_selected, short_code, created_at",
       )
-      .eq("version_group_id", versionGroupId)
+      .or(`version_group_id.eq.${versionGroupId},id.eq.${versionGroupId}`)
+      .eq("project_id", data.projectId)
       .is("deleted_at", null)
       .order("version", { ascending: false });
 

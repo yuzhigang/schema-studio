@@ -372,3 +372,111 @@ export async function rebuildNodeSubtree(
     }
   }
 }
+
+async function runChunked<T>(
+  items: T[],
+  size: number,
+  task: (item: T, index: number) => Promise<void>,
+) {
+  for (let start = 0; start < items.length; start += size) {
+    const chunk = items.slice(start, start + size);
+    await Promise.all(chunk.map((item, offset) => task(item, start + offset)));
+  }
+}
+
+/**
+ * Reorder a set of sibling tree nodes in a single fetch + a few concurrent write
+ * batches, instead of one sequential `findTreeNode` + `rebuildNodeSubtree`
+ * round-trip per item. All new `path_code`/`level`/`sort_order` values are
+ * computed in memory against one snapshot, then written with bounded
+ * concurrency. Each write is the same single-row `path_code`/`level`/`sort_order`
+ * UPDATE as before, so the children-count and soft-delete triggers stay inert.
+ */
+export async function reorderSiblingsBatched(
+  service: ReturnType<typeof getServiceClient>,
+  projectId: string,
+  params: {
+    entityType: "category" | "table" | "column";
+    orderedEntityIds: string[];
+    parentPath: string | null;
+    parentLevel: number;
+  },
+): Promise<void> {
+  const { data: nodes, error } = await service
+    .from("tree_node")
+    .select("id, entity_type, entity_id, path_code, level, sort_order")
+    .eq("project_id", projectId)
+    .is("deleted_at", null);
+
+  if (error) {
+    throw error;
+  }
+  if (!nodes || nodes.length === 0) {
+    return;
+  }
+
+  const nodeByEntity = new Map<string, (typeof nodes)[number]>();
+  for (const node of nodes) {
+    nodeByEntity.set(`${node.entity_type}:${node.entity_id}`, node);
+  }
+
+  const newLevel = params.parentLevel + 1;
+  const updates = new Map<string, { path_code: string; level: number; sort_order: number }>();
+
+  params.orderedEntityIds.forEach((entityId, index) => {
+    const node = nodeByEntity.get(`${params.entityType}:${entityId}`);
+    if (!node) {
+      return;
+    }
+
+    const sortOrder = index + 1;
+    const oldPath = node.path_code;
+    const newPath = buildPathCode(params.parentPath, sortOrder);
+    const levelDelta = newLevel - node.level;
+
+    if (node.path_code !== newPath || node.level !== newLevel || node.sort_order !== sortOrder) {
+      updates.set(node.id, { path_code: newPath, level: newLevel, sort_order: sortOrder });
+    }
+
+    if (oldPath === newPath && levelDelta === 0) {
+      return;
+    }
+
+    const prefix = `${oldPath}.`;
+    for (const descendant of nodes) {
+      if (!descendant.path_code.startsWith(prefix)) {
+        continue;
+      }
+      const suffix = descendant.path_code.slice(oldPath.length + 1);
+      updates.set(descendant.id, {
+        path_code: `${newPath}.${suffix}`,
+        level: descendant.level + levelDelta,
+        sort_order: descendant.sort_order,
+      });
+    }
+  });
+
+  const entries = Array.from(updates.entries());
+  await runChunked(entries, 25, async ([id, patch]) => {
+    const { error: updateError } = await service.from("tree_node").update(patch).eq("id", id);
+    if (updateError) {
+      throw updateError;
+    }
+  });
+}
+
+/** Update `schema_column.sort_order` for an ordered list in bounded-concurrency batches. */
+export async function reorderColumnSortOrders(
+  service: ReturnType<typeof getServiceClient>,
+  orderedColumnIds: string[],
+): Promise<void> {
+  await runChunked(orderedColumnIds, 25, async (columnId, index) => {
+    const { error } = await service
+      .from("schema_column")
+      .update({ sort_order: index + 1 })
+      .eq("id", columnId);
+    if (error) {
+      throw error;
+    }
+  });
+}

@@ -41,7 +41,7 @@ type FieldGridProps = {
   selectedFieldId: string | null;
   onFieldSelect: (fieldId: string) => void;
   onFieldsChange: (fields: SchemaField[]) => void;
-  onFieldAdd: () => void;
+  onFieldAdd: (afterFieldId: string) => void;
   onFieldDelete: (fieldId: string) => void;
   onFieldsReorder: (orderedFieldIds: string[]) => void;
   canUndo?: boolean;
@@ -160,16 +160,6 @@ export function FieldGrid({
             <Redo2Icon className="mr-1 size-4" />
             恢复
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onFieldAdd}
-            className="rounded-md border-slate-200 bg-white text-slate-700 shadow-none"
-          >
-            <PlusIcon className="mr-1 size-4" />
-            新增字段
-          </Button>
         </div>
       </div>
       <div className="overflow-hidden rounded-none border border-slate-200 bg-white">
@@ -178,17 +168,17 @@ export function FieldGrid({
             <thead className="bg-slate-50 text-slate-900">
               <tr className="h-10 border-b border-slate-200">
                 <th className="w-10 px-2 text-left font-semibold" />
-                <th className="w-[13%] px-2 text-left font-semibold">字段名</th>
-                <th className="w-[11%] px-2 text-left font-semibold">逻辑名</th>
-                <th className="w-[10%] px-2 text-left font-semibold">数据类型</th>
-                <th className="w-[7%] px-2 text-left font-semibold">长度</th>
-                <th className="w-[6%] px-1 text-center font-semibold">主键</th>
-                <th className="w-[6%] px-1 text-center font-semibold">可空</th>
-                <th className="w-[6%] px-1 text-center font-semibold">自增</th>
-                <th className="w-[6%] px-1 text-center font-semibold">索引</th>
-                <th className="w-[13%] px-2 text-left font-semibold">默认值</th>
+                <th className="w-[10%] px-2 text-left font-semibold">字段名</th>
+                <th className="w-[10%] px-2 text-left font-semibold">逻辑名</th>
+                <th className="w-[6%] px-2 text-left font-semibold">数据类型</th>
+                <th className="w-[6%] px-2 text-left font-semibold">长度</th>
                 <th className="px-2 text-left font-semibold">说明</th>
-                <th className="w-14 px-2 text-center font-semibold">操作</th>
+                <th className="w-[5%] px-1 text-center font-semibold">主键</th>
+                <th className="w-[5%] px-1 text-center font-semibold">可空</th>
+                <th className="w-[5%] px-1 text-center font-semibold">自增</th>
+                <th className="w-[5%] px-1 text-center font-semibold">索引</th>
+                <th className="w-[6%] px-2 text-left font-semibold">默认值</th>
+                <th className="w-20 px-2 text-center font-semibold">操作</th>
               </tr>
             </thead>
             <SortableContext
@@ -204,6 +194,7 @@ export function FieldGrid({
                       selected={selectedFieldId === field.id}
                       onFieldSelect={onFieldSelect}
                       onFieldChange={(patch) => updateField(field.id, patch)}
+                      onFieldAdd={onFieldAdd}
                       onFieldDelete={onFieldDelete}
                     />
                   ))
@@ -228,12 +219,14 @@ function SortableFieldRow({
   selected,
   onFieldSelect,
   onFieldChange,
+  onFieldAdd,
   onFieldDelete,
 }: {
   field: SchemaField;
   selected: boolean;
   onFieldSelect: (fieldId: string) => void;
   onFieldChange: (patch: Partial<SchemaField>) => void;
+  onFieldAdd: (afterFieldId: string) => void;
   onFieldDelete: (fieldId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -330,6 +323,15 @@ function SortableFieldRow({
           <span className="text-slate-300">-</span>
         )}
       </td>
+      <td className="px-2">
+        <Input
+          type="text"
+          value={field.description}
+          onChange={(event) => onFieldChange({ description: event.target.value })}
+          onClick={(event) => event.stopPropagation()}
+          className="h-8 px-2 text-sm"
+        />
+      </td>
       <td className="px-1">
         <div className="flex justify-center">
           <Checkbox
@@ -369,26 +371,32 @@ function SortableFieldRow({
       <td className="px-2">
         <DefaultValueCell field={field} onChange={onFieldChange} />
       </td>
-      <td className="px-2">
-        <Input
-          type="text"
-          value={field.description}
-          onChange={(event) => onFieldChange({ description: event.target.value })}
-          onClick={(event) => event.stopPropagation()}
-          className="h-8 px-2 text-sm"
-        />
-      </td>
+
       <td className="px-2 text-center">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onFieldDelete(field.id);
-          }}
-          className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-        >
-          <Trash2Icon className="size-4" />
-        </button>
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onFieldDelete(field.id);
+            }}
+            className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+            aria-label="删除字段"
+          >
+            <Trash2Icon className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onFieldAdd(field.id);
+            }}
+            className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+            aria-label="在下方新增字段"
+          >
+            <PlusIcon className="size-4" />
+          </button>
+        </div>
       </td>
     </tr>
   );

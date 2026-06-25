@@ -207,6 +207,13 @@ export const $importProject = createServerFn({ method: "POST" })
           name: tableState.table.name,
           logical_name: tableState.table.logicalName,
           description: tableState.table.description,
+          // Each imported table starts its own version group pointing at itself.
+          // Without this the column is left NULL (it has no DB default), which
+          // breaks $listTableVersions later — a created version's group query
+          // (.eq version_group_id) would never match this original row.
+          version: 1,
+          version_selected: true,
+          version_group_id: tableState.entityId,
           created_at: now,
           updated_at: now,
         })),

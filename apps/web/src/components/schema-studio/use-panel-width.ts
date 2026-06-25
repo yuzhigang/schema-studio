@@ -8,8 +8,8 @@ export const DEFAULT_TREE_PANEL_WIDTH = 520;
 
 const MIN_PROJECT_PANEL_WIDTH = 200;
 const MAX_PROJECT_PANEL_WIDTH = 400;
-const MIN_TREE_PANEL_WIDTH = 400;
-const MAX_TREE_PANEL_WIDTH = 720;
+const MIN_TREE_PANEL_WIDTH = 200;
+const MAX_TREE_PANEL_WIDTH = 600;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);

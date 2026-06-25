@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { SchemaField, TableMetadata } from "#/components/schema-studio/schema-types";
+import type {
+  SchemaField,
+  SchemaFolder,
+  TableMetadata,
+} from "#/components/schema-studio/schema-types";
 import type { ProjectMemberRole, TeamRole } from "#/components/schema-studio/schema-types";
 import {
   $createCategory,
@@ -22,6 +26,7 @@ import {
   $reorderCategories,
   $reorderColumns,
   $reorderTables,
+  $saveTableAsVersion,
   $setSelectedTableVersion,
   $syncTableFromRef,
   $updateColumn,
@@ -37,6 +42,8 @@ import {
   $findUserByEmail,
   $joinTeamByInvite,
 } from "#/server/team/functions";
+
+import type { SaveTableVersionField } from "./schema-version-data";
 
 export type ImportProjectPayload = {
   content: string;
@@ -67,6 +74,44 @@ const tableVersionKeys = {
   all: (tableId: string, projectId: string) =>
     ["schema-studio", "table-versions", tableId, projectId] as const,
 };
+
+// ---------------------------------------------------------------------------
+// Optimistic reorder helpers
+// ---------------------------------------------------------------------------
+
+type OptimisticTreeContext = { previous: SchemaFolder[] | undefined };
+
+function applyOrder<TItem extends { id: string }>(items: TItem[], orderedIds: string[]): TItem[] {
+  const rank = new Map(orderedIds.map((id, index) => [id, index] as const));
+  return [...items].sort(
+    (a, b) =>
+      (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+async function applyOptimisticTree(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectId: string,
+  updater: (folders: SchemaFolder[]) => SchemaFolder[],
+): Promise<OptimisticTreeContext> {
+  const key = projectKeys.tree(projectId);
+  await queryClient.cancelQueries({ queryKey: key });
+  const previous = queryClient.getQueryData<SchemaFolder[]>(key);
+  if (previous) {
+    queryClient.setQueryData<SchemaFolder[]>(key, updater(previous));
+  }
+  return { previous };
+}
+
+function rollbackOptimisticTree(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectId: string,
+  context: OptimisticTreeContext | undefined,
+) {
+  if (context?.previous) {
+    queryClient.setQueryData(projectKeys.tree(projectId), context.previous);
+  }
+}
 
 export function useProjects() {
   return useQuery({
@@ -175,7 +220,15 @@ export function useDeleteCategory() {
   return useMutation({
     mutationFn: (payload: { projectId: string; categoryId: string }) =>
       $deleteCategory({ data: payload }),
-    onSuccess: (_, variables) => {
+    // Remove the folder from the cached tree immediately so the UI updates
+    // without waiting on the round-trip refetch; roll back if the server fails.
+    onMutate: (variables) =>
+      applyOptimisticTree(queryClient, variables.projectId, (folders) =>
+        folders.filter((folder) => folder.id !== variables.categoryId),
+      ),
+    onError: (_error, variables, context) =>
+      rollbackOptimisticTree(queryClient, variables.projectId, context),
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.all() });
     },
@@ -188,7 +241,19 @@ export function useDeleteTable() {
   return useMutation({
     mutationFn: (payload: { projectId: string; tableId: string }) =>
       $deleteTable({ data: payload }),
-    onSuccess: (_, variables) => {
+    onMutate: (variables) =>
+      applyOptimisticTree(queryClient, variables.projectId, (folders) =>
+        folders.map((folder) => {
+          if (!folder.tables.some((table) => table.id === variables.tableId)) {
+            return folder;
+          }
+          const tables = folder.tables.filter((table) => table.id !== variables.tableId);
+          return { ...folder, tables, count: tables.length };
+        }),
+      ),
+    onError: (_error, variables, context) =>
+      rollbackOptimisticTree(queryClient, variables.projectId, context),
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.all() });
     },
@@ -201,7 +266,23 @@ export function useDeleteColumn() {
   return useMutation({
     mutationFn: (payload: { projectId: string; columnId: string }) =>
       $deleteColumn({ data: payload }),
-    onSuccess: (_, variables) => {
+    onMutate: (variables) =>
+      applyOptimisticTree(queryClient, variables.projectId, (folders) =>
+        folders.map((folder) => ({
+          ...folder,
+          tables: folder.tables.map((table) =>
+            table.fields.some((field) => field.id === variables.columnId)
+              ? {
+                  ...table,
+                  fields: table.fields.filter((field) => field.id !== variables.columnId),
+                }
+              : table,
+          ),
+        })),
+      ),
+    onError: (_error, variables, context) =>
+      rollbackOptimisticTree(queryClient, variables.projectId, context),
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
     },
   });
@@ -211,9 +292,16 @@ export function useReorderCategories() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { background: true },
     mutationFn: (payload: { projectId: string; orderedCategoryIds: string[] }) =>
       $reorderCategories({ data: payload }),
-    onSuccess: (_, variables) => {
+    onMutate: (variables) =>
+      applyOptimisticTree(queryClient, variables.projectId, (folders) =>
+        applyOrder(folders, variables.orderedCategoryIds),
+      ),
+    onError: (_error, variables, context) =>
+      rollbackOptimisticTree(queryClient, variables.projectId, context),
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
     },
   });
@@ -223,9 +311,20 @@ export function useReorderTables() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { background: true },
     mutationFn: (payload: { projectId: string; folderId: string; orderedTableIds: string[] }) =>
       $reorderTables({ data: payload }),
-    onSuccess: (_, variables) => {
+    onMutate: (variables) =>
+      applyOptimisticTree(queryClient, variables.projectId, (folders) =>
+        folders.map((folder) =>
+          folder.id === variables.folderId
+            ? { ...folder, tables: applyOrder(folder.tables, variables.orderedTableIds) }
+            : folder,
+        ),
+      ),
+    onError: (_error, variables, context) =>
+      rollbackOptimisticTree(queryClient, variables.projectId, context),
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
     },
   });
@@ -235,9 +334,23 @@ export function useReorderColumns() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { background: true },
     mutationFn: (payload: { projectId: string; tableId: string; orderedColumnIds: string[] }) =>
       $reorderColumns({ data: payload }),
-    onSuccess: (_, variables) => {
+    onMutate: (variables) =>
+      applyOptimisticTree(queryClient, variables.projectId, (folders) =>
+        folders.map((folder) => ({
+          ...folder,
+          tables: folder.tables.map((table) =>
+            table.id === variables.tableId
+              ? { ...table, fields: applyOrder(table.fields, variables.orderedColumnIds) }
+              : table,
+          ),
+        })),
+      ),
+    onError: (_error, variables, context) =>
+      rollbackOptimisticTree(queryClient, variables.projectId, context),
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
     },
   });
@@ -411,15 +524,39 @@ export function useCreateTableVersion() {
   });
 }
 
+export function useSaveTableAsVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: {
+      projectId: string;
+      tableId: string;
+      metadata: TableMetadata;
+      fields: SaveTableVersionField[];
+    }) => $saveTableAsVersion({ data: payload }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
+      queryClient.invalidateQueries({
+        queryKey: tableVersionKeys.all(variables.tableId, variables.projectId),
+      });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all() });
+    },
+  });
+}
+
 export function useSetSelectedTableVersion() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: { projectId: string; tableId: string }) =>
       $setSelectedTableVersion({ data: payload }),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
-      queryClient.invalidateQueries({
+    // Await the tree refetch before this resolves so the navigation that runs in
+    // the caller's onSuccess lands on a tree that already reflects the newly
+    // selected version. Otherwise it navigates to the new short code while the
+    // tree is still stale and the page only corrects on a full reload.
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: projectKeys.tree(variables.projectId) });
+      await queryClient.invalidateQueries({
         queryKey: tableVersionKeys.all(variables.tableId, variables.projectId),
       });
     },
