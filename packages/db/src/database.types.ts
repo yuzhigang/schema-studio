@@ -52,6 +52,8 @@ export interface Database {
           name: string;
           slug: string | null;
           short_code: string | null;
+          icon: string | null;
+          description: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -61,6 +63,8 @@ export interface Database {
           name: string;
           slug?: string | null;
           short_code?: string | null;
+          icon?: string | null;
+          description?: string | null;
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
@@ -70,6 +74,8 @@ export interface Database {
           name?: string;
           slug?: string | null;
           short_code?: string | null;
+          icon?: string | null;
+          description?: string | null;
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;

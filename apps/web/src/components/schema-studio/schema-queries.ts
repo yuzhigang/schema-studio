@@ -37,10 +37,16 @@ import { $importProject } from "#/server/schema/import";
 import {
   $createTeam,
   $createTeamInvite,
+  $disbandTeam,
   $fetchMyTeams,
+  $fetchTeamDetail,
   $fetchTeamMembers,
+  $fetchTeamProjectAccess,
   $findUserByEmail,
   $joinTeamByInvite,
+  $setProjectMembersBulk,
+  $transferTeamOwnership,
+  $updateTeam,
 } from "#/server/team/functions";
 
 import type { SaveTableVersionField } from "./schema-version-data";
@@ -64,6 +70,8 @@ const teamProjectsKeys = {
 const teamKeys = {
   all: () => ["schema-studio", "teams"] as const,
   members: (teamId: string) => ["schema-studio", "team-members", teamId] as const,
+  detail: (teamId: string) => ["schema-studio", "team-detail", teamId] as const,
+  projectAccess: (teamId: string) => ["schema-studio", "team-project-access", teamId] as const,
 };
 
 const projectMemberKeys = {
@@ -438,6 +446,85 @@ export function useTeamMembers(teamId: string) {
     queryKey: teamKeys.members(teamId),
     queryFn: () => $fetchTeamMembers({ data: { teamId } }),
     enabled: Boolean(teamId),
+  });
+}
+
+export function useTeamDetail(teamId: string) {
+  return useQuery({
+    queryKey: teamKeys.detail(teamId),
+    queryFn: () => $fetchTeamDetail({ data: { teamId } }),
+    enabled: Boolean(teamId),
+  });
+}
+
+export function useUpdateTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: {
+      teamId: string;
+      name: string;
+      icon?: string | null;
+      description?: string | null;
+    }) => $updateTeam({ data: payload }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: teamKeys.all() });
+      queryClient.invalidateQueries({ queryKey: teamKeys.detail(variables.teamId) });
+    },
+  });
+}
+
+export function useTransferTeamOwnership() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { teamId: string; targetUserId: string }) =>
+      $transferTeamOwnership({ data: payload }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: teamKeys.all() });
+      queryClient.invalidateQueries({ queryKey: teamKeys.detail(variables.teamId) });
+      queryClient.invalidateQueries({ queryKey: teamKeys.members(variables.teamId) });
+    },
+  });
+}
+
+export function useDisbandTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { teamId: string }) => $disbandTeam({ data: payload }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: teamKeys.all() });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all() });
+      queryClient.invalidateQueries({ queryKey: teamProjectsKeys.all() });
+    },
+  });
+}
+
+export function useTeamProjectAccess(teamId: string) {
+  return useQuery({
+    queryKey: teamKeys.projectAccess(teamId),
+    queryFn: () => $fetchTeamProjectAccess({ data: { teamId } }),
+    enabled: Boolean(teamId),
+  });
+}
+
+export function useSetProjectMembersBulk() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: {
+      teamId: string;
+      changes: { projectId: string; userId: string; role: ProjectMemberRole | null }[];
+    }) => $setProjectMembersBulk({ data: payload }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: teamKeys.projectAccess(variables.teamId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all() });
+      const projectIds = new Set(variables.changes.map((change) => change.projectId));
+      for (const projectId of projectIds) {
+        queryClient.invalidateQueries({ queryKey: projectMemberKeys.all(projectId) });
+      }
+    },
   });
 }
 

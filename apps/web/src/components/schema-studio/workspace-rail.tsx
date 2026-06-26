@@ -31,8 +31,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   BookOpenIcon,
+  Building2Icon,
+  CheckIcon,
   CopyIcon,
   DatabaseIcon,
+  LinkIcon,
   LogOutIcon,
   PlusIcon,
   RulerIcon,
@@ -42,6 +45,7 @@ import {
 import { useState } from "react";
 
 import { useCreateTeam, useCreateTeamInvite, useMyTeams } from "./schema-queries";
+import { TeamSettingsDialog } from "./team-settings-dialog";
 
 const railItems = [
   { id: "schemas", label: "Schema", icon: BookOpenIcon, active: true },
@@ -49,6 +53,18 @@ const railItems = [
   { id: "rules", label: "Rules", icon: RulerIcon, active: false },
   { id: "tools", label: "Tools", icon: SparklesIcon, active: false },
 ];
+
+const INVITE_ROLE_LABELS: Record<string, string> = {
+  admin: "管理员",
+  editor: "编辑者",
+  viewer: "只读",
+};
+
+const INVITE_ROLE_DESCRIPTIONS: Record<string, string> = {
+  admin: "可管理团队成员、项目及团队设置，但不能移交或解散团队。",
+  editor: "可创建并编辑被授权项目的表、字段等内容。",
+  viewer: "仅可查看被授权的项目，不能修改任何内容。",
+};
 
 export function WorkspaceRail({ activeTeamShortCode }: { activeTeamShortCode?: string }) {
   return (
@@ -71,10 +87,43 @@ export function WorkspaceRail({ activeTeamShortCode }: { activeTeamShortCode?: s
           </Button>
         ))}
       </nav>
-      <div className="pb-4">
+      <div className="flex flex-col items-center gap-3 pb-4">
+        <TeamSettingsLauncher activeTeamShortCode={activeTeamShortCode} />
         <TeamMenu activeTeamShortCode={activeTeamShortCode} />
       </div>
     </aside>
+  );
+}
+
+function TeamSettingsLauncher({ activeTeamShortCode }: { activeTeamShortCode?: string }) {
+  const { data: user } = useQuery(authQueryOptions());
+  const { data: teams = [] } = useMyTeams();
+  const [open, setOpen] = useState(false);
+
+  const currentTeam = teams.find((team) => team.shortCode === activeTeamShortCode);
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        className="rounded-md text-slate-700"
+        aria-label="团队设置"
+        disabled={!currentTeam}
+        onClick={() => setOpen(true)}
+      >
+        <Building2Icon className="size-5" />
+      </Button>
+      {currentTeam && user?.id && (
+        <TeamSettingsDialog
+          open={open}
+          onOpenChange={setOpen}
+          teamId={currentTeam.id}
+          currentUserId={user.id}
+        />
+      )}
+    </>
   );
 }
 
@@ -235,7 +284,7 @@ function TeamMenu({ activeTeamShortCode }: { activeTeamShortCode?: string }) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         {dialogMode === "create" ? (
           <form onSubmit={handleCreateTeam}>
             <DialogHeader>
@@ -262,64 +311,109 @@ function TeamMenu({ activeTeamShortCode }: { activeTeamShortCode?: string }) {
           <form onSubmit={handleCreateInvite}>
             <DialogHeader>
               <DialogTitle>邀请成员</DialogTitle>
-              <DialogDescription>生成 1 小时有效的邀请链接。</DialogDescription>
+              <DialogDescription>
+                选择团队与角色后生成一个邀请链接，发给同事打开即可加入。
+              </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <Select
-                value={selectedTeamId}
-                onValueChange={(value) => setSelectedTeamId(value ?? "")}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择团队" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teams
-                    .filter((team) => team.role === "owner" || team.role === "admin")
-                    .map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={inviteRole}
-                onValueChange={(value) => setInviteRole((value ?? "editor") as typeof inviteRole)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择角色" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">管理员</SelectItem>
-                  <SelectItem value="editor">编辑者</SelectItem>
-                  <SelectItem value="viewer">只读</SelectItem>
-                </SelectContent>
-              </Select>
-              {inviteLink && (
-                <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <div className="min-w-0 flex-1 text-xs break-all text-slate-700">
-                    {inviteLink}
-                  </div>
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    className="shrink-0 text-slate-600 hover:text-slate-900"
-                    aria-label="复制邀请链接"
-                    onClick={copyInviteLink}
-                  >
-                    <CopyIcon className="size-4" />
-                  </Button>
+            <div className="space-y-5 py-4">
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium text-slate-700">
+                  <span className="mr-1 text-slate-400">①</span>邀请到团队
                 </div>
-              )}
-              {copied && <p className="text-xs text-green-600">已复制到剪贴板</p>}
+                <Select
+                  value={selectedTeamId}
+                  onValueChange={(value) => setSelectedTeamId(value ?? "")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择团队">
+                      {(value) => teams.find((team) => team.id === value)?.name ?? "选择团队"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams
+                      .filter((team) => team.role === "owner" || team.role === "admin")
+                      .map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-400">仅显示你作为所有者 / 管理员的团队。</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium text-slate-700">
+                  <span className="mr-1 text-slate-400">②</span>成员角色
+                </div>
+                <Select
+                  value={inviteRole}
+                  onValueChange={(value) => setInviteRole((value ?? "editor") as typeof inviteRole)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择角色">
+                      {(value) => INVITE_ROLE_LABELS[value as string] ?? "选择角色"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">管理员</SelectItem>
+                    <SelectItem value="editor">编辑者</SelectItem>
+                    <SelectItem value="viewer">只读</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  {INVITE_ROLE_DESCRIPTIONS[inviteRole]}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium text-slate-700">
+                  <span className="mr-1 text-slate-400">③</span>邀请链接
+                </div>
+                {inviteLink ? (
+                  <>
+                    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+                      <LinkIcon className="size-4 shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1 text-xs break-all text-slate-700">
+                        {inviteLink}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={copied ? "outline" : "default"}
+                        className="shrink-0 gap-1"
+                        onClick={copyInviteLink}
+                      >
+                        {copied ? (
+                          <>
+                            <CheckIcon className="size-3.5" />
+                            已复制
+                          </>
+                        ) : (
+                          <>
+                            <CopyIcon className="size-3.5" />
+                            复制
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-amber-600">
+                      链接 1 小时内有效，且仅可使用一次，请尽快发送。
+                    </p>
+                  </>
+                ) : (
+                  <p className="rounded-md border border-dashed border-slate-200 px-3 py-3 text-center text-xs text-slate-400">
+                    点击下方「生成链接」后，邀请链接会显示在这里。
+                  </p>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 关闭
               </Button>
               <Button type="submit" disabled={!selectedTeamId || createInvite.isPending}>
-                生成链接
+                {inviteLink ? "重新生成" : "生成链接"}
               </Button>
             </DialogFooter>
           </form>

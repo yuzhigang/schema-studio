@@ -1,4 +1,3 @@
-import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import {
   Select,
@@ -9,14 +8,20 @@ import {
 } from "@repo/ui/components/select";
 import { cn } from "@repo/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { LayersIcon, PencilIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { LayersIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useState, type PointerEvent } from "react";
 
+import {
+  PERMISSION_OPTIONS,
+  TEAM_ROLE_LABELS,
+  getPermissionLabel,
+  type ProjectPermission,
+} from "./member-permissions";
 import { ProjectSidebar } from "./project-sidebar";
 import {
-  useFindUserByEmail,
   useProjectMembers,
   useRemoveProjectMember,
+  useTeamMembers,
   useTeamProjects,
   useUpsertProjectMember,
 } from "./schema-queries";
@@ -228,7 +233,10 @@ export function ProjectSettingsPage({
           </div>
           <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
             {activeSection === "members" ? (
-              <ProjectMembersPanel projectId={activeProject?.id ?? ""} />
+              <ProjectMembersPanel
+                projectId={activeProject?.id ?? ""}
+                teamId={activeProject?.teamId ?? ""}
+              />
             ) : (
               <div className="rounded-md border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
                 该模块尚未实现
@@ -241,71 +249,52 @@ export function ProjectSettingsPage({
   );
 }
 
-function ProjectMembersPanel({ projectId }: { projectId: string }) {
-  const { data: members = [] } = useProjectMembers(projectId);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<ProjectMemberRole>("editor");
-  const findUser = useFindUserByEmail();
+function ProjectMembersPanel({ projectId, teamId }: { projectId: string; teamId: string }) {
+  const { data: teamMembers = [], isLoading: teamLoading } = useTeamMembers(teamId);
+  const { data: projectMembers = [] } = useProjectMembers(projectId);
   const upsertMember = useUpsertProjectMember();
   const removeMember = useRemoveProjectMember();
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
-  function handleAdd(event: { preventDefault: () => void }) {
-    event.preventDefault();
-    if (!email.trim() || !projectId) return;
-    findUser.mutate(
-      { email: email.trim() },
-      {
-        onSuccess: (profile) => {
-          if (!profile) {
-            window.alert("未找到该用户");
-            return;
-          }
-          upsertMember.mutate(
-            { projectId, userId: profile.id, role },
-            {
-              onSuccess: () => {
-                setEmail("");
-              },
-            },
-          );
-        },
-      },
-    );
+  // Map each user to their explicit project_member role (absent = no access).
+  const roleByUserId = useMemo(() => {
+    const map = new Map<string, ProjectMemberRole>();
+    for (const member of projectMembers) {
+      map.set(member.userId, member.role);
+    }
+    return map;
+  }, [projectMembers]);
+
+  const grantedCount = useMemo(
+    () =>
+      teamMembers.filter(
+        (member) =>
+          member.role === "owner" || member.role === "admin" || roleByUserId.has(member.userId),
+      ).length,
+    [teamMembers, roleByUserId],
+  );
+
+  function handlePermissionChange(userId: string, next: ProjectPermission) {
+    if (!projectId) return;
+    setPendingUserId(userId);
+    const onSettled = () => setPendingUserId((current) => (current === userId ? null : current));
+    if (next === "none") {
+      // Revoking access soft-deletes the project_member row.
+      removeMember.mutate({ projectId, userId }, { onSettled });
+    } else {
+      // Granting any role creates/updates the project_member row, which is what
+      // "joining the project" means here.
+      upsertMember.mutate({ projectId, userId, role: next }, { onSettled });
+    }
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">成员管理（{members.length}成员）</p>
+        <p className="text-sm text-slate-500">
+          团队成员（{teamMembers.length}）· 已授权 {grantedCount}
+        </p>
       </div>
-
-      <form onSubmit={handleAdd} className="flex items-center gap-2">
-        <Input
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="用户邮箱"
-          className="w-64"
-        />
-        <Select
-          value={role}
-          onValueChange={(value) => setRole((value ?? "editor") as ProjectMemberRole)}
-        >
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="admin">管理员</SelectItem>
-            <SelectItem value="editor">编辑者</SelectItem>
-            <SelectItem value="viewer">只读</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button
-          type="submit"
-          disabled={!email.trim() || findUser.isPending || upsertMember.isPending}
-        >
-          添加
-        </Button>
-      </form>
 
       <div className="rounded-md border border-slate-200">
         <table className="w-full text-left text-sm">
@@ -314,49 +303,76 @@ function ProjectMembersPanel({ projectId }: { projectId: string }) {
               <th className="px-4 py-3 font-medium">名称</th>
               <th className="px-4 py-3 font-medium">团队角色</th>
               <th className="px-4 py-3 font-medium">项目权限</th>
-              <th className="px-4 py-3 font-medium">最近活跃</th>
-              <th className="px-4 py-3 font-medium">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {members.map((member) => (
-              <tr key={member.id}>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">
-                      {(member.displayName ?? member.email).charAt(0).toUpperCase()}
-                    </div>
-                    <span>{member.displayName ?? member.email}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs text-orange-700">
-                    团队所有者
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
-                    {member.role}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-slate-400">1小时前</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon-xs" aria-label="编辑">
-                      <PencilIcon className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="删除"
-                      onClick={() => removeMember.mutate({ projectId, userId: member.userId })}
-                    >
-                      <Trash2Icon className="size-4" />
-                    </Button>
-                  </div>
+            {teamMembers.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-8 text-center text-slate-400">
+                  {teamLoading ? "加载中…" : "暂无团队成员"}
                 </td>
               </tr>
-            ))}
+            ) : (
+              teamMembers.map((member) => {
+                const isInheritedAdmin = member.role === "owner" || member.role === "admin";
+                const currentPermission: ProjectPermission =
+                  roleByUserId.get(member.userId) ?? "none";
+                const isPending = pendingUserId === member.userId;
+                return (
+                  <tr key={member.id}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">
+                          {(member.displayName ?? member.email).charAt(0).toUpperCase()}
+                        </div>
+                        <span>{member.displayName ?? member.email}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs text-orange-700">
+                        {TEAM_ROLE_LABELS[member.role] ?? member.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {isInheritedAdmin ? (
+                        <span
+                          className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-500"
+                          title="团队所有者 / 管理员默认拥有项目的完整访问权限"
+                        >
+                          管理员（继承）
+                        </span>
+                      ) : (
+                        <Select
+                          value={currentPermission}
+                          onValueChange={(value) =>
+                            handlePermissionChange(
+                              member.userId,
+                              (value ?? "none") as ProjectPermission,
+                            )
+                          }
+                          disabled={isPending || !projectId}
+                        >
+                          <SelectTrigger
+                            className={cn("w-32", currentPermission === "none" && "text-slate-400")}
+                          >
+                            <SelectValue>
+                              {(value) => getPermissionLabel(value as ProjectPermission)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent alignItemWithTrigger={false}>
+                            {PERMISSION_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

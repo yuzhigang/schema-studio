@@ -260,7 +260,7 @@ function ProjectActionsMenu({
           </Button>
         }
       />
-      <DropdownMenuContent align="end" side="right">
+      <DropdownMenuContent align="start" side="right">
         <DropdownMenuItem
           onClick={() => {
             void navigate({
